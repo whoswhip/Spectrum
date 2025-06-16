@@ -1,0 +1,246 @@
+﻿using OpenCvSharp;
+using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Drawing;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace Spectrum
+{
+    public static class AutoLabeling
+    {
+        private static int imageCount = 0;
+        private static int detectionAttemps = 0;
+        private static readonly object lockObject = new object();
+        private static CancellationTokenSource? cancellationTokenSource;
+        private static Task? backgroundTask;
+        private static readonly ConcurrentQueue<LabelingData> labelingQueue = new ConcurrentQueue<LabelingData>();
+        private static readonly ConcurrentQueue<BackgroundImageData> backgroundQueue = new ConcurrentQueue<BackgroundImageData>();
+
+        private static List<YoloBoundingBox> GetBoundingBoxes(OpenCvSharp.Point[][] contours, int imageWidth, int imageHeight)
+        {
+            var boundingBoxes = new List<YoloBoundingBox>();
+            foreach (var contour in contours)
+            {
+                if (contour.Length < 3) continue; // probably not an actual enemy
+                int minX = contour.Min(p => p.X);
+                int minY = contour.Min(p => p.Y);
+                int maxX = contour.Max(p => p.X);
+                int maxY = contour.Max(p => p.Y);
+                double centerX = (minX + maxX) / 2.0;
+                double centerY = (minY + maxY) / 2.0;
+                double width = maxX - minX;
+                double height = maxY - minY;
+                boundingBoxes.Add(new YoloBoundingBox
+                {
+                    ClassId = 0,
+                    CenterX = centerX / imageWidth,
+                    CenterY = centerY / imageHeight,
+                    Width = width / imageWidth,
+                    Height = height / imageHeight,
+                    PixelMinX = minX,
+                    PixelMinY = minY,
+                    PixelMaxX = maxX,
+                    PixelMaxY = maxY
+                });
+            }
+            return boundingBoxes;
+        }
+        private static void SaveLabels(string path, List<YoloBoundingBox> boundingBoxes)
+        {
+            try
+            {
+                var labelContent = new StringBuilder();
+                foreach (var box in boundingBoxes)
+                {
+                    labelContent.AppendLine($"{box.ClassId} {box.CenterX} {box.CenterY} {box.Width} {box.Height}");
+                }
+                File.WriteAllText(path, labelContent.ToString());
+            }
+            catch
+            {
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine("[ERROR] Failed to save labels to " + path);
+                Console.ResetColor();
+            }
+        }
+        private static void SaveMatAsImage(Mat mat, string path)
+        {
+            try
+            {
+                Cv2.ImWrite(path, mat);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error saving image: {ex.Message}");
+            }
+        }
+
+        private static async Task LabelingLoop(CancellationToken cancellationToken)
+        {
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                if (labelingQueue.TryDequeue(out LabelingData? data))
+                {
+                    try
+                    {
+                        await ProcessImageAsync(data);
+                    }
+                    catch
+                    {
+                        Console.ForegroundColor = ConsoleColor.Red;
+                        Console.WriteLine("[ERROR] Failed to process labeling data.");
+                        Console.ResetColor();
+                    }
+                }
+
+                if (backgroundQueue.TryDequeue(out BackgroundImageData? backgroundData))
+                {
+                    try
+                    {
+                        await ProcessBackgroundImageAsync(backgroundData);
+                    }
+                    catch
+                    {
+                        Console.ForegroundColor = ConsoleColor.Red;
+                        Console.WriteLine("[ERROR] Failed to process background image data.");
+                        Console.ResetColor();
+                    }
+                }
+
+                await Task.Delay(10, cancellationToken);
+            }
+        }
+
+        public static void AddToQueue(Mat mat, Rectangle bounds, OpenCvSharp.Point[][] filteredContours)
+        {
+            if (!Config.AutoLabel || filteredContours.Length == 0)
+                return;
+            
+            Mat clone = mat.Clone(); 
+            labelingQueue.Enqueue(new LabelingData
+            {
+                Mat = clone,
+                Bounds = bounds,
+                FilteredContours = filteredContours
+            });
+        }
+
+        public static void AddBackgroundImage(Mat mat, bool detected)
+        {
+            if (!Config.AutoLabel)
+                return;
+
+            detectionAttemps++;
+
+            if (detectionAttemps < Config.BackgroundImageInterval || detected)
+                return;
+
+            Mat clone = mat.Clone();
+            backgroundQueue.Enqueue(new BackgroundImageData
+            {
+                Mat = clone
+            });
+        }
+
+        private static async Task ProcessImageAsync(LabelingData data)
+        {
+            await Task.Run(() =>
+            {
+                try
+                {
+                    var boundingBoxes = GetBoundingBoxes(data.FilteredContours, data.Mat.Width, data.Mat.Height);
+
+                    if (boundingBoxes.Count == 0)
+                        return;
+
+                    lock (lockObject)
+                    {
+                        string imageFileName = $"image_{imageCount:D6}.jpg";
+                        string labelFileName = $"image_{imageCount:D6}.txt";
+
+                        string imagePath = Path.Combine("dataset/images", imageFileName);
+                        string labelPath = Path.Combine("dataset/labels", labelFileName);
+
+                        SaveMatAsImage(data.Mat, imagePath);
+
+                        SaveLabels(labelPath, boundingBoxes);
+
+                        imageCount++;
+                    }
+                }
+                finally
+                {
+                    data.Mat?.Dispose();
+                }
+            });
+        }
+        private static async Task ProcessBackgroundImageAsync(BackgroundImageData data)
+        {
+            await Task.Run(() =>
+            {
+                try
+                {
+                    lock (lockObject)
+                    {
+                        string imageFileName = $"image_{imageCount:D6}.jpg";
+                        string imagePath = Path.Combine("dataset/images", imageFileName);
+
+                        SaveMatAsImage(data.Mat, imagePath);
+
+                        imageCount++;
+                    }
+                }
+                finally
+                {
+                    data.Mat?.Dispose();
+                }
+            });
+        }
+
+        public static void StartLabeling()
+        {
+            if (cancellationTokenSource != null)
+                return;
+            cancellationTokenSource = new CancellationTokenSource();
+            backgroundTask = Task.Run(() => LabelingLoop(cancellationTokenSource.Token));
+        }
+        public static void StopLabeling()
+        {
+            if (cancellationTokenSource == null)
+                return;
+            cancellationTokenSource.Cancel();
+            backgroundTask?.Wait();
+            cancellationTokenSource.Dispose();
+            cancellationTokenSource = null;
+            backgroundTask = null;
+        }
+
+        public class YoloBoundingBox
+        {
+            public int ClassId { get; set; }
+            public double CenterX { get; set; }
+            public double CenterY { get; set; }
+            public double Width { get; set; }
+            public double Height { get; set; }
+
+
+            public int PixelMinX { get; set; }
+            public int PixelMinY { get; set; }
+            public int PixelMaxX { get; set; }
+            public int PixelMaxY { get; set; }
+        }
+        public class LabelingData
+        {
+            public Mat Mat { get; set; } = null!;
+            public Rectangle Bounds { get; set; }
+            public OpenCvSharp.Point[][] FilteredContours { get; set; } = null!;
+        }
+        public class BackgroundImageData
+        {
+            public Mat Mat { get; set; } = null!;
+        }
+    }
+}
