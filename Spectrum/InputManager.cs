@@ -42,16 +42,29 @@ namespace Spectrum
             return new Point(x, y);
         }
 
+        private static Point CurvedMovement(Point start, Point end, double t)
+        {
+            Point control = new Point((start.X + end.X) / 2, (start.Y + end.Y) / 2 - 200);
+            return QuadraticBezier(start, end, control, t);
+        }
+        private static Point QuadraticBezier(Point start, Point end, Point control, double t)
+        {
+            double u = 1 - t;
+            double tt = t * t;
+            double uu = u * u;
+            double x = uu * start.X + 2 * u * t * control.X + tt * end.X;
+            double y = uu * start.Y + 2 * u * t * control.Y + tt * end.Y;
+            return new Point((int)x, (int)y);
+        }
+
         private static Point AdaptiveMovement(Point start, Point end, double sensitivity)
         {
-            // Calculate the distance between the start and end points
             double distance = Math.Sqrt(Math.Pow(end.X - start.X, 2) + Math.Pow(end.Y - start.Y, 2));
-            // Calculate the step size based on sensitivity
             double stepSize = distance * sensitivity;
-            // Calculate the direction vector
+
             double directionX = (end.X - start.X) / distance;
             double directionY = (end.Y - start.Y) / distance;
-            // Calculate the new position
+
             int newX = (int)(start.X + directionX * stepSize);
             int newY = (int)(start.Y + directionY * stepSize);
             return new Point(newX, newY);
@@ -80,6 +93,7 @@ namespace Spectrum
                 Config.MovementType.CubicBezier => CubicBezierMovement(start, end, Config.Sensitivity),
                 Config.MovementType.Linear => LinearInterpolation(start, end, Config.Sensitivity),
                 Config.MovementType.Adaptive => AdaptiveMovement(start, end, Config.Sensitivity),
+                Config.MovementType.QuadraticBezier => CurvedMovement(start, end, Config.Sensitivity),
                 _ => end
             };
 

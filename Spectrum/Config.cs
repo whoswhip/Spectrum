@@ -13,6 +13,7 @@ namespace Spectrum
         {
             Linear,
             CubicBezier,
+            QuadraticBezier,
             Adaptive
         }
         // Image settings
