@@ -22,7 +22,7 @@ On first run, a default configuration file is created.
 
 `ClosestToMouse`: true or false (Default: true)
 
-`Keybind`: 1 - 255 (Default: 6), these are [virtual key codes](https://learn.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes)
+`Keybind`: 1 - 254 (Default: 6), these are [virtual key codes](https://learn.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes)
 
 `Sensitivity`: 0.1 - 2 (Default: 0.5) 
 
