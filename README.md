@@ -1,159 +1,66 @@
 # Spectrum
-
-A real-time computer vision application for object detection and automated targeting using OpenCV and C#. Spectrum captures screen regions, detects objects based on HSV color filtering, and can automatically move the mouse cursor to target detected objects.
+Spectrum is a semi-universal colorbot that uses C# and OpenCV for image processing.
 
 ## Features
-
-- **Real-time Screen Capture**: Captures specific screen regions for processing
-- **HSV Color-based Detection**: Uses HSV color space filtering to detect objects
-- **Automated Targeting**: Automatically moves mouse cursor to detected targets
-- **Dataset Collection**: Automatically generates labeled datasets for machine learning
-- **Configurable Parameters**: Extensive configuration options via JSON file
-- **Visual Feedback**: Optional detection window showing real-time results
-- **Hotkey Support**: Configurable keybinding for activation
-
-## Requirements
-
-- .NET 8.0 or later
-- Windows operating system
-- OpenCV 4.11.0+
-
-## Installation
-
-1. Clone the repository:
-   ```powershell
-   git clone https://github.com/whoswhip/Spectrum.git
-   cd Spectrum
-   ```
-
-2. Build the project:
-   ```powershell
-   dotnet build
-   ```
-
-3. Run the application:
-   ```powershell
-   dotnet run --project Spectrum
-   ```
+- Extensive configuration file
+- Dataset collection
+- Multiple mouse movement paths
 
 ## Configuration
+On first run, a default configuration file is created.
+### Parameters
+#### `ImageSettings`
+`ImageWidth`: 1 - ScreenSize (Default: 640)
 
-The application uses a `config.json` file for configuration. On first run, a default configuration file will be created. You can modify the following parameters:
+`ImageHeight`: 1 - ScreenSize (Default: 640)
+#### `OffsetSettings 
+`YOffsetPercent`: 0.0 - 1 (Default: 0.8)
 
-### Display Settings
-- `ImageWidth`: Width of the capture region (default: 640)
-- `ImageHeight`: Height of the capture region (default: 640)
-- `ShowDetectionWindow`: Show real-time detection window (default: true)
+`XOffsetPercent`: 0.0 - 1 (Default: 0.5)
+#### `AimSettings`
+`EnableAim`: true or false (Default: true)
 
-### Detection Settings
-- `UpperHSV`: Upper HSV color bounds for detection
-- `LowerHSV`: Lower HSV color bounds for detection
-- `YOffsetPercent`: Y-axis offset percentage for targeting (default: 0.8)
-- `XOffsetPercent`: X-axis offset percentage for targeting (default: 0.5)
+`ClosestToMouse`: true or false (Default: true)
 
-### Control Settings
-- `EnableAim`: Enable automatic mouse movement (default: true)
-- `ClosestToMouse`: Target closest object to mouse cursor (default: true)
-- `Keybind`: Activation key code (default: 6 - mouse side button)
-- `Sensitivity`: Mouse movement sensitivity (default: 0.5)
+`Keybind`: 1 - 255 (Default: 6), these are [virtual key codes](https://learn.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes)
 
-### Data Collection
-- `CollectData`: Enable dataset collection (default: false)
-- `AutoLabel`: Enable automatic labeling for YOLO format (default: false)
-- `BackgroundImageInterval`: Interval for background image collection (default: 10)
+`Sensitivity`: 0.1 - 2 (Default: 0.5) 
 
-### Example Configuration
+`AimMovementType`: CubicBezier, Linear & Adaptive (Default: CubicBezier)
 
-```json
-{
-  "ImageWidth": 640,
-  "ImageHeight": 640,
-  "YOffsetPercent": 0.8,
-  "XOffsetPercent": 0.5,
-  "EnableAim": true,
-  "ClosestToMouse": true,
-  "Keybind": 6,
-  "Sensitivity": 0.1,
-  "ShowDetectionWindow": true,
-  "CollectData": false,
-  "AutoLabel": false,
-  "BackgroundImageInterval": 10,
-  "UpperHSV": {
-    "Val0": 150.0,
-    "Val1": 255.0,
-    "Val2": 229.0,
-    "Val3": 0.0
-  },
-  "LowerHSV": {
-    "Val0": 150.0,
-    "Val1": 255.0,
-    "Val2": 229.0,
-    "Val3": 0.0
-  }
-}
-```
+#### `DisplaySettings`
+`ShowDetectionWindow`: true or false (Default: true)
 
-## Usage
+#### `DataCollectionSettings`
+`CollectData`: true or false (Default: false)
 
-1. **Start the application**: Run the executable or use `dotnet run`
-2. **Configure detection**: Adjust HSV values in `config.json` for your target objects
-3. **Activate detection**: Press the configured keybind (default: mouse side button)
-4. **Real-time targeting**: The application will automatically detect and target objects
-5. **Reload configuration**: Press F5 or R to reload configuration without restarting
+`AutoLabel`: true or false (Default: false), this is dependent on `CollectData`
 
-### Keyboard Controls
+`BackgroundImageInterval`: 1 - 100 (Default: 10)
 
-- **Escape**: Exit the application
-- **F5/R**: Reload configuration from file
-- **Configured Keybind**: Activate detection and targeting
+#### `ColorSettings`
+`UpperHSV`
+- `Val0`: 0 - 255 (Default: 150) Hue
+- `Val1`: 0 - 255 (Default: 255) Saturation
+- `Val2`: 0 - 255 (Default: 229) Value
+- `Val3`: 0 (Default: 0) ?
+
+`LowerHSV`
+- `Val0`: 0 - 255 (Default: 150) Hue
+- `Val1`: 0 - 255 (Default: 255) Saturation
+- `Val2`: 0 - 255 (Default: 229) Value
+- `Val3`: 0 (Default: 0) ?
 
 ## Dataset Collection
-
 When `CollectData` and `AutoLabel` are enabled, Spectrum automatically generates:
-
-- **Images**: Captured screenshots saved to `dataset/images/`
-- **Labels**: YOLO format annotation files saved to `dataset/labels/`
-- **Background Images**: Non-detection samples for training balance
-
-This feature is useful for creating training datasets for machine learning models.
-
-## Technical Details
-
-### Dependencies
-
-- **OpenCvSharp4**: OpenCV bindings for .NET
-- **Newtonsoft.Json**: JSON configuration handling
-- **System.Drawing.Common**: Screen capture and image processing
-
-### Architecture
-
-- **Program.cs**: Main application loop and screen capture
-- **Config.cs**: Configuration management and validation
-- **AutoLabeling.cs**: Dataset generation and YOLO labeling
-- **InputManager.cs**: Mouse input simulation
-
-### Detection Pipeline
-
-1. **Screen Capture**: Captures specified screen region
-2. **Color Space Conversion**: Converts BGR to HSV
-3. **Color Filtering**: Applies HSV range mask
-4. **Morphological Operations**: Dilates image to fill gaps
-5. **Contour Detection**: Finds object boundaries
-6. **Filtering**: Removes small contours (area < 100)
-7. **Target Selection**: Chooses closest target to reference point
-8. **Mouse Movement**: Moves cursor to calculated target position
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test thoroughly
-5. Submit a pull request
+- **Images**: Captured screenshots saved to `dataset/images`
+- **Labels**: YOLO format annotation files saved to `dataset/labels`
+- **Background Images**: Screenshots without any labels, helps training balance
+This feature is very useful for creating training datasets for machine learning models.
 
 ## License
 
-See LICENSE.txt for license information.
+See [LICENSE.txt](LICENSE.txt) for license information.
 
 ## Disclaimer
 
