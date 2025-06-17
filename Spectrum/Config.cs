@@ -179,7 +179,8 @@ namespace Spectrum
                     ["EnableAim"] = EnableAim,
                     ["ClosestToMouse"] = ClosestToMouse,
                     ["Keybind"] = Keybind,
-                    ["Sensitivity"] = Sensitivity
+                    ["Sensitivity"] = Sensitivity,
+                    ["AimMovementType"] = AimMovementType.ToString()
                 },
                 ["DisplaySettings"] = new JObject
                 {
