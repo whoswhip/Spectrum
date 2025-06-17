@@ -12,6 +12,9 @@ namespace Spectrum
         static void Main()
         {
             Config.LoadConfig();
+            Config.StartFileWatcher();
+
+
             var screenSize = SystemHelper.GetPrimaryScreenSize();
             bounds = new Rectangle(
                 (screenSize.Width - Config.ImageWidth) / 2,
@@ -45,12 +48,125 @@ namespace Spectrum
                         {
                             Cv2.DestroyAllWindows();
                         }
+                        Config.StopFileWatcher();
+                        Environment.Exit(0);
                     }
-                    else if (key == ConsoleKey.F5 || key == ConsoleKey.R)
+                    else if (key == ConsoleKey.O)
                     {
-                        Config.LoadConfig(true);
-                        Console.ForegroundColor = ConsoleColor.Green;
-                        Console.WriteLine("[INFO] Configuration reloaded.");
+                        try
+                        {
+                            string configFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "config.json");
+                            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                            {
+                                FileName = configFilePath,
+                                UseShellExecute = true,
+                                CreateNoWindow = true
+                            });
+                            Console.ForegroundColor = ConsoleColor.Green;
+                            Console.WriteLine("[INFO] Opened config file in default application.");
+                            Console.ResetColor();
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"Failed to open config file: {ex.Message}");
+                        }
+                    }
+                    else if (key == ConsoleKey.F1)
+                    {
+                        Config.ShowDetectionWindow = !Config.ShowDetectionWindow;
+                        if (Config.ShowDetectionWindow)
+                        {
+                            Cv2.NamedWindow("Spectrum Detection", WindowFlags.AutoSize);
+                            Console.ForegroundColor = ConsoleColor.Green;
+                            Console.WriteLine("[INFO] Enabled detection window.");
+                        }
+                        else
+                        {
+                            Cv2.DestroyAllWindows();
+                            Console.ForegroundColor = ConsoleColor.Red;
+                            Console.WriteLine("[INFO] Disabled detection window.");
+                        }
+                        Console.ResetColor();
+                    }
+                    else if (key == ConsoleKey.F2)
+                    {
+                        Config.AutoLabel = !Config.AutoLabel;
+                        if (Config.AutoLabel)
+                        {
+                            Config.CollectData = true;
+                            AutoLabeling.StartLabeling();
+                            Console.ForegroundColor = ConsoleColor.Green;
+                            Console.WriteLine("[INFO] Enabled auto-labeling.");
+                        }
+                        else
+                        {
+                            AutoLabeling.StopLabeling();
+                            Console.ForegroundColor = ConsoleColor.Red;
+                            Console.WriteLine("[INFO] Disabled auto-labeling.");
+                        }
+                        Console.ResetColor();
+                    }
+                    else if (key == ConsoleKey.F3)
+                    {
+                        Config.CollectData = !Config.CollectData;
+                        if (Config.CollectData)
+                        {
+                            Console.ForegroundColor = ConsoleColor.Green;
+                            Console.WriteLine("[INFO] Enabled data collection.");
+                        }
+                        else
+                        {
+                            Console.ForegroundColor = ConsoleColor.Red;
+                            Console.WriteLine("[INFO] Disabled data collection.");
+                        }
+                        Console.ResetColor();
+                    }
+                    else if (key == ConsoleKey.F4)
+                    {
+                        Config.EnableAim = !Config.EnableAim;
+                        if (Config.EnableAim)
+                        {
+                            Console.ForegroundColor = ConsoleColor.Green;
+                            Console.WriteLine("[INFO] Enabled aiming.");
+                        }
+                        else
+                        {
+                            Console.ForegroundColor = ConsoleColor.Red;
+                            Console.WriteLine("[INFO] Disabled aiming.");
+                        }
+                        Console.ResetColor();
+                    }
+                    else if (key == ConsoleKey.F5)
+                    {
+                        Config.ClosestToMouse = !Config.ClosestToMouse;
+                        if (Config.ClosestToMouse)
+                        {
+                            Console.ForegroundColor = ConsoleColor.Green;
+                            Console.WriteLine("[INFO] Enabled closest to mouse aiming.");
+                        }
+                        else
+                        {
+                            Console.ForegroundColor = ConsoleColor.Red;
+                            Console.WriteLine("[INFO] Disabled closest to mouse aiming.");
+                        }
+                        Console.ResetColor();
+                    }
+                    else if (key == ConsoleKey.H || key == ConsoleKey.Help)
+                    {
+                        Console.WriteLine("Spectrum Keybinds:");
+                        Console.WriteLine("F1: Toggle detection window");
+                        Console.WriteLine("F2: Toggle auto-labeling");
+                        Console.WriteLine("F3: Toggle data collection");
+                        Console.WriteLine("F4: Toggle aiming");
+                        Console.WriteLine("F5: Toggle closest to mouse aiming");
+                        Console.WriteLine("O: Open config file in default application");
+                        Console.WriteLine("ESC: Exit the application");
+                        Console.WriteLine("H: Show this help message");
+                    }
+                    else
+                    {
+                        Console.ForegroundColor = ConsoleColor.Yellow;
+                        Console.WriteLine("[WARNING] Unrecognized key pressed. Press H for help.");
                         Console.ResetColor();
                     }
                 }
@@ -117,6 +233,10 @@ namespace Spectrum
                                 AutoLabeling.AddToQueue(drawing, bounds, filteredContours);
                                 AutoLabeling.AddBackgroundImage(drawing, true);
                             }
+                            if (!Config.AutoLabel && Config.CollectData)
+                            {
+                                AutoLabeling.AddBackgroundImage(drawing, false);
+                            }
 
                             if (Config.EnableAim)
                             {
@@ -125,7 +245,6 @@ namespace Spectrum
 
                             if (Config.ShowDetectionWindow)
                             {
-                                Cv2.DrawContours(drawing, filteredContours, -1, Scalar.Red, 2);
                                 Cv2.Rectangle(drawing, new OpenCvSharp.Point(bestMinX, bestMinY), new OpenCvSharp.Point(bestMaxX, bestMaxY), Scalar.Blue, 2);
                                 Cv2.ImShow("Spectrum Detection", drawing);
                                 Cv2.WaitKey(1);
