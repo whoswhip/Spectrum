@@ -14,7 +14,6 @@ namespace Spectrum
             Config.LoadConfig();
             Config.StartFileWatcher();
 
-
             var screenSize = SystemHelper.GetPrimaryScreenSize();
             bounds = new Rectangle(
                 (screenSize.Width - Config.ImageWidth) / 2,
@@ -251,11 +250,16 @@ namespace Spectrum
                             }
                         }
                     }
-                    else if (Config.ShowDetectionWindow)
+                    else if (Config.ShowDetectionWindow || Config.CollectData)
                     {
                         Cv2.ImShow("Spectrum Detection", drawing);
                         Cv2.WaitKey(1);
+                        if (Config.CollectData)
+                            AutoLabeling.AddBackgroundImage(drawing, false);
                     }
+                    screenshot?.Dispose();
+                    mat.Dispose();
+                    drawing.Dispose();
                 }
                 else
                 {

@@ -29,7 +29,7 @@ namespace Spectrum
         public static bool ClosestToMouse { get; set; } = true; // if false it will use the center of the screen
         public static int Keybind { get; set; } = 0x06; // first side button on mouse
         public static double Sensitivity { get; set; } = 0.5;
-        public static MovementType AimMovementType { get; set; } = MovementType.CubicBezier;
+        public static MovementType AimMovementType { get; set; } = MovementType.Adaptive;
 
         // Display settings
         public static bool ShowDetectionWindow { get; set; } = true;

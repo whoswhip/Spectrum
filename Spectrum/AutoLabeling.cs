@@ -114,11 +114,15 @@ namespace Spectrum
             }
         }
 
+
         public static void AddToQueue(Mat mat, Rectangle bounds, OpenCvSharp.Point[][] filteredContours)
         {
             if (!Config.AutoLabel || filteredContours.Length == 0)
                 return;
-            
+
+            if (labelingQueue.Count > 250)
+                return;
+
             Mat clone = mat.Clone(); 
             labelingQueue.Enqueue(new LabelingData
             {
@@ -136,6 +140,9 @@ namespace Spectrum
             detectionAttemps++;
 
             if (detectionAttemps < Config.BackgroundImageInterval || detected)
+                return;
+
+            if (backgroundQueue.Count > 250)
                 return;
 
             Mat clone = mat.Clone();
