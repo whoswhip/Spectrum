@@ -1,5 +1,4 @@
 ﻿using OpenCvSharp;
-using OpenCvSharp.Internal.Vectors;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.Runtime.InteropServices;

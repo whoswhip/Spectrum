@@ -40,7 +40,7 @@ namespace Spectrum
         public static int BackgroundImageInterval { get; set; } = 10; // after 10 loops with no detection, save a background image
 
         // Color settings
-        public static Scalar UpperHSV { get; set; } = new Scalar(150, 255, 229); 
+        public static Scalar UpperHSV { get; set; } = new Scalar(150, 255, 229);
         public static Scalar LowerHSV { get; set; } = new Scalar(150, 255, 229);
         #endregion
 
@@ -48,12 +48,12 @@ namespace Spectrum
         {
             if (File.Exists("config.json"))
             {
-                string config_content = File.ReadAllText("config.json");               
+                string config_content = File.ReadAllText("config.json");
                 try
                 {
                     var config = JObject.Parse(config_content);
                     bool error = false;
-                    
+
                     var imageSettings = config["ImageSettings"];
                     ImageWidth = imageSettings?["ImageWidth"]?.Value<int>() ?? config["ImageWidth"]?.Value<int>() ?? ImageWidth;
                     ImageHeight = imageSettings?["ImageHeight"]?.Value<int>() ?? config["ImageHeight"]?.Value<int>() ?? ImageHeight;
@@ -61,7 +61,7 @@ namespace Spectrum
                     var offsetSettings = config["OffsetSettings"];
                     YOffsetPercent = offsetSettings?["YOffsetPercent"]?.Value<double>() ?? config["YOffsetPercent"]?.Value<double>() ?? YOffsetPercent;
                     XOffsetPercent = offsetSettings?["XOffsetPercent"]?.Value<double>() ?? config["XOffsetPercent"]?.Value<double>() ?? XOffsetPercent;
-                    
+
                     var aimSettings = config["AimSettings"];
                     EnableAim = aimSettings?["EnableAim"]?.Value<bool>() ?? config["EnableAim"]?.Value<bool>() ?? EnableAim;
                     ClosestToMouse = aimSettings?["ClosestToMouse"]?.Value<bool>() ?? config["ClosestToMouse"]?.Value<bool>() ?? ClosestToMouse;
@@ -121,7 +121,7 @@ namespace Spectrum
                         Sensitivity = 0.5;
                         error = true;
                     }
-                    if (AutoLabel && !CollectData )
+                    if (AutoLabel && !CollectData)
                     {
                         Console.ForegroundColor = ConsoleColor.Yellow;
                         Console.WriteLine("[WARNING] AutoLabel is enabled but CollectData is not. Disabling AutoLabel.");
@@ -161,7 +161,8 @@ namespace Spectrum
                 Console.ResetColor();
                 SaveConfig();
             }
-        }        public static void SaveConfig()
+        }
+        public static void SaveConfig()
         {
             var config = new JObject
             {
@@ -198,7 +199,7 @@ namespace Spectrum
                     ["UpperHSV"] = JToken.FromObject(UpperHSV),
                     ["LowerHSV"] = JToken.FromObject(LowerHSV)
                 }
-            };            File.WriteAllText("config.json", config.ToString(Formatting.Indented));
+            }; File.WriteAllText("config.json", config.ToString(Formatting.Indented));
         }
 
         public static void StartFileWatcher()
