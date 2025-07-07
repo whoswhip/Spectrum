@@ -9,47 +9,44 @@ Spectrum is a semi-universal colorbot that uses C# and OpenCV for image processi
 ## Configuration
 On first run, a default configuration file is created.
 ### Parameters
-#### `ImageSettings`
-`ImageWidth`: 1 - ScreenSize (Default: 640)
+| Parameter     | Range/Options         | Default Value | Description                     |
+|---------------|-----------------------|---------------|---------------------------------|
+| `ImageWidth`  | 1 - ScreenSize        | 640           | Defines the width of the image |
+| `ImageHeight` | 1 - ScreenSize        | 640           | Defines the height of the image|
 
-`ImageHeight`: 1 - ScreenSize (Default: 640)
-#### `OffsetSettings 
-`YOffsetPercent`: 0.0 - 1 (Default: 0.8)
+| Parameter         | Range/Options | Default Value | Description                     |
+|-------------------|---------------|---------------|---------------------------------|
+| `YOffsetPercent`  | 0.0 - 1       | 0.8           | Sets the vertical offset       |
+| `XOffsetPercent`  | 0.0 - 1       | 0.5           | Sets the horizontal offset     |
 
-`XOffsetPercent`: 0.0 - 1 (Default: 0.5)
-#### `AimSettings`
-`EnableAim`: true or false (Default: true)
+| Parameter          | Range/Options                 | Default Value | Description                                             |
+|--------------------|-------------------------------|---------------|---------------------------------------------------------|
+| `EnableAim`        | true or false                | true          | Enables or disables aim functionality                   |
+| `ClosestToMouse`   | true or false                | true          | Determines aiming at the closest target to the mouse    |
+| `Keybind`          | 1 - 254                      | 6             | Virtual key codes are used for keybinding              |
+| `Sensitivity`      | 0.1 - 2                      | 0.5           | Defines the sensitivity of the aim                     |
+| `AimMovementType`  | CubicBezier, Linear, Adaptive| CubicBezier   | Specifies the type of aim movement                     |
 
-`ClosestToMouse`: true or false (Default: true)
+| Parameter             | Range/Options | Default Value | Description                     |
+|-----------------------|---------------|---------------|---------------------------------|
+| `ShowDetectionWindow` | true or false | true          | Displays the detection window   |
 
-`Keybind`: 1 - 254 (Default: 6), these are [virtual key codes](https://learn.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes)
+| Parameter                 | Range/Options | Default Value | Description                                   |
+|---------------------------|---------------|---------------|-----------------------------------------------|
+| `CollectData`             | true or false | false         | Enables or disables data collection          |
+| `AutoLabel`               | true or false | false         | Depends on `CollectData`; auto-labels data   |
+| `BackgroundImageInterval` | 1 - 100       | 10            | Sets interval for background image collection|
 
-`Sensitivity`: 0.1 - 2 (Default: 0.5) 
-
-`AimMovementType`: CubicBezier, Linear & Adaptive (Default: CubicBezier)
-
-#### `DisplaySettings`
-`ShowDetectionWindow`: true or false (Default: true)
-
-#### `DataCollectionSettings`
-`CollectData`: true or false (Default: false)
-
-`AutoLabel`: true or false (Default: false), this is dependent on `CollectData`
-
-`BackgroundImageInterval`: 1 - 100 (Default: 10)
-
-#### `ColorSettings`
-`UpperHSV`
-- `Val0`: 0 - 255 (Default: 150) Hue
-- `Val1`: 0 - 255 (Default: 255) Saturation
-- `Val2`: 0 - 255 (Default: 229) Value
-- `Val3`: 0 (Default: 0) ?
-
-`LowerHSV`
-- `Val0`: 0 - 255 (Default: 150) Hue
-- `Val1`: 0 - 255 (Default: 255) Saturation
-- `Val2`: 0 - 255 (Default: 229) Value
-- `Val3`: 0 (Default: 0) ?
+| Parameter   | Sub-Parameter | Range/Options | Default Value | Description                     |
+|-------------|---------------|---------------|---------------|---------------------------------|
+| **UpperHSV**| `Val0`        | 0 - 255       | 150           | Hue                             |
+|             | `Val1`        | 0 - 255       | 255           | Saturation                      |
+|             | `Val2`        | 0 - 255       | 229           | Value                           |
+|             | `Val3`        | 0             | 0             |                                 |
+| **LowerHSV**| `Val0`        | 0 - 255       | 150           | Hue                             |
+|             | `Val1`        | 0 - 255       | 255           | Saturation                      |
+|             | `Val2`        | 0 - 255       | 229           | Value                           |
+|             | `Val3`        | 0             | 0             |                                 |
 
 ## Dataset Collection
 When `CollectData` and `AutoLabel` are enabled, Spectrum automatically generates:
