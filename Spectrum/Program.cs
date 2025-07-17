@@ -28,10 +28,16 @@ namespace Spectrum
             });
             renderThread.Start();
 
-            mainConfig.LoadConfig();
-            mainConfig.StartFileWatcher();
+            Directory.CreateDirectory("bin");
+            Directory.CreateDirectory("bin/dataset");
+            Directory.CreateDirectory("bin/dataset/images");
+            Directory.CreateDirectory("bin/dataset/labels");
+            Directory.CreateDirectory("bin/logs");
+            Directory.CreateDirectory("bin/configs");
 
             var screenSize = SystemHelper.GetPrimaryScreenSize();
+            mainConfig.LoadConfig();
+            mainConfig.StartFileWatcher();
 
             if (mainConfig.Data.ShowDetectionWindow)
             {
@@ -42,13 +48,6 @@ namespace Spectrum
             {
                 AutoLabeling.StartLabeling();
             }
-
-            Directory.CreateDirectory("bin");
-            Directory.CreateDirectory("bin/dataset");
-            Directory.CreateDirectory("bin/dataset/images");
-            Directory.CreateDirectory("bin/dataset/labels");
-            Directory.CreateDirectory("bin/logs");
-            Directory.CreateDirectory("bin/configs");
 
             if (colorConfig.Data.Colors.Count == 0)
             {
