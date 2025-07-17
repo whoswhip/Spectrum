@@ -2,6 +2,7 @@
 using ImGuiNET;
 using OpenCvSharp;
 using System.Collections.Concurrent;
+using System.ComponentModel.DataAnnotations;
 using System.Diagnostics;
 using System.Numerics;
 
@@ -21,6 +22,7 @@ namespace Spectrum
         private readonly ConcurrentQueue<Keys> _keybindResults = new();
         private ConfigManager<ConfigData> mainConfig = Program.mainConfig;
         private ConfigManager<ColorData> colorConfig = Program.colorConfig;
+        private string ColorName = "New Color";
 
         public Renderer() : base("Spectrum", screenSize.width, screenSize.width)
         {
@@ -161,6 +163,20 @@ namespace Spectrum
                 ImGui.SameLine();
                 ImGui.Text("Draw FOV");
 
+                bool DrawDetections = mainConfig.Data.DrawDetections;
+                if (ImGui.Checkbox("##Draw Detections", ref DrawDetections))
+                {
+                    mainConfig.Data.DrawDetections = DrawDetections;
+                }
+                ImGui.SameLine();
+                Vector4 DetectionColor = mainConfig.Data.DetectionColor;
+                if (ImGui.ColorEdit4("Draw Color", ref DetectionColor, ImGuiColorEditFlags.NoInputs | ImGuiColorEditFlags.NoLabel))
+                {
+                    mainConfig.Data.DetectionColor = DetectionColor;
+                }
+                ImGui.SameLine();
+                ImGui.Text("Draw Detections");
+
                 ImGui.EndTabItem();
             }
 
@@ -214,6 +230,7 @@ namespace Spectrum
                                 mainConfig.Data.SelectedColor = color.Name;
                                 mainConfig.Data.UpperHSV = color.Upper;
                                 mainConfig.Data.LowerHSV = color.Lower;
+                                ColorName = color.Name;
                             }
                             if (isSelected)
                             {
@@ -224,19 +241,38 @@ namespace Spectrum
                     }
                 }
 
-                bool DrawDetections = mainConfig.Data.DrawDetections;
-                if (ImGui.Checkbox("##Draw Detections", ref DrawDetections))
+                ImGui.InputText("##ColorNameInput", ref ColorName, 32);
+                ImGui.SameLine();
+                if (ImGui.Button("Delete Color"))
                 {
-                    mainConfig.Data.DrawDetections = DrawDetections;
+                    if (colors.Any(c => c.Name.Equals(mainConfig.Data.SelectedColor, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        colors.RemoveAll(c => c.Name.Equals(mainConfig.Data.SelectedColor, StringComparison.OrdinalIgnoreCase));
+                        colorConfig.SaveConfig();
+                        mainConfig.Data.SelectedColor = "Arsenal [Magenta]";
+                        mainConfig.Data.UpperHSV = new Scalar(150, 255, 229);
+                        mainConfig.Data.LowerHSV = new Scalar(150, 255, 229);
+                    }
+                    else
+                    {
+                        LogManager.Log($"Color '{mainConfig.Data.SelectedColor}' does not exist.", LogManager.LogLevel.Warning);
+                    }
                 }
                 ImGui.SameLine();
-                Vector4 DetectionColor = mainConfig.Data.DetectionColor;
-                if (ImGui.ColorEdit4("Draw Color", ref DetectionColor, ImGuiColorEditFlags.NoInputs | ImGuiColorEditFlags.NoLabel))
+                if (ImGui.Button("Save Color"))
                 {
-                    mainConfig.Data.DetectionColor = DetectionColor;
+                    var color = new ColorInfo(ColorName, mainConfig.Data.UpperHSV, mainConfig.Data.LowerHSV);
+                    if (!string.IsNullOrEmpty(ColorName) && !colors.Any(c => c.Name.Equals(ColorName, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        colors.Add(color);
+                        colorConfig.SaveConfig();
+                        mainConfig.Data.SelectedColor = ColorName;
+                    }
+                    else
+                    {
+                        LogManager.Log($"Color with name '{ColorName}' already exists or is empty.", LogManager.LogLevel.Warning);
+                    }
                 }
-                ImGui.SameLine();
-                ImGui.Text("Draw Detections");
 
                 ImGui.EndTabItem();
             }
