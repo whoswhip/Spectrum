@@ -1,5 +1,4 @@
-﻿using System.Drawing;
-using System.Runtime.InteropServices;
+﻿using System.Runtime.InteropServices;
 
 namespace Spectrum
 {
@@ -10,6 +9,7 @@ namespace Spectrum
 
         [DllImport("user32.dll")]
         private static extern bool GetCursorPos(out POINT lpPoint);
+        private static ConfigManager<ConfigData> mainConfig = Program.mainConfig;
 
         private struct POINT
         {
@@ -69,11 +69,12 @@ namespace Spectrum
             int newY = (int)(start.Y + directionY * stepSize);
             return new Point(newX, newY);
         }
+        private static double EmaSmoothing(double previousValue, double currentValue, double smoothingFactor) => (currentValue * smoothingFactor) + (previousValue * (1 - smoothingFactor));
 
         public static void MoveMouse(Point target)
         {
             POINT reference = new POINT();
-            if (Config.ClosestToMouse)
+            if (mainConfig.Data.ClosestToMouse)
             {
                 GetCursorPos(out reference);
             }
@@ -88,20 +89,75 @@ namespace Spectrum
 
             Point start = new Point(reference.X, reference.Y);
             Point end = new Point(target.X, target.Y);
-            Point newPosition = Config.AimMovementType switch
+            Point newPosition = mainConfig.Data.AimMovementType switch
             {
-                Config.MovementType.CubicBezier => CubicBezierMovement(start, end, Config.Sensitivity),
-                Config.MovementType.Linear => LinearInterpolation(start, end, Config.Sensitivity),
-                Config.MovementType.Adaptive => AdaptiveMovement(start, end, Config.Sensitivity),
-                Config.MovementType.QuadraticBezier => CurvedMovement(start, end, Config.Sensitivity),
+                MovementType.CubicBezier => CubicBezierMovement(start, end, mainConfig.Data.Sensitivity),
+                MovementType.Linear => LinearInterpolation(start, end, mainConfig.Data.Sensitivity),
+                MovementType.Adaptive => AdaptiveMovement(start, end, mainConfig.Data.Sensitivity),
+                MovementType.QuadraticBezier => CurvedMovement(start, end, mainConfig.Data.Sensitivity),
                 _ => end
             };
+
+            if (mainConfig.Data.EmaSmoothening)
+            {
+                newPosition.X = (int)EmaSmoothing(reference.X, newPosition.X, mainConfig.Data.EmaSmootheningFactor);
+                newPosition.Y = (int)EmaSmoothing(reference.Y, newPosition.Y, mainConfig.Data.EmaSmootheningFactor);
+            }
 
             int deltaX = newPosition.X - reference.X;
             int deltaY = newPosition.Y - reference.Y;
 
+            if (Math.Abs(deltaX) < 1 && Math.Abs(deltaY) < 1) return;
+            if (deltaX > mainConfig.Data.ImageWidth || deltaX < -mainConfig.Data.ImageWidth || deltaY > mainConfig.Data.ImageHeight || deltaY < -mainConfig.Data.ImageHeight)
+                return;
+
 
             mouse_event(0x0001, (uint)(deltaX), (uint)(deltaY), 0, 0);
+        }
+        [DllImport("user32.dll")]
+        private static extern short GetAsyncKeyState(int vKey);
+
+        private static readonly Keys[] MouseKeys =
+        {
+            Keys.LButton, Keys.RButton, Keys.MButton, Keys.XButton1, Keys.XButton2
+        };
+
+        public static Task<Keys> ListenForNextKeyOrMouseAsync(CancellationToken? cancellationToken = null)
+        {
+            var tcs = new TaskCompletionSource<Keys>();
+            var thread = new Thread(() =>
+            {
+                while (true)
+                {
+                    for (int key = 0x08; key <= 0xFE; key++)
+                    {
+                        if ((GetAsyncKeyState(key) & 0x8000) != 0)
+                        {
+                            tcs.TrySetResult((Keys)key);
+                            return;
+                        }
+                    }
+                    foreach (var mouseKey in MouseKeys)
+                    {
+                        if ((GetAsyncKeyState((int)mouseKey) & 0x8000) != 0)
+                        {
+                            tcs.TrySetResult(mouseKey);
+                            return;
+                        }
+                    }
+                    if (cancellationToken?.IsCancellationRequested == true)
+                    {
+                        tcs.TrySetCanceled();
+                        return;
+                    }
+                    Thread.Sleep(10);
+                }
+            })
+            {
+                IsBackground = true
+            };
+            thread.Start();
+            return tcs.Task;
         }
     }
 }

@@ -1,7 +1,7 @@
 ﻿using OpenCvSharp;
 using System.Collections.Concurrent;
-using System.Drawing;
 using System.Text;
+using LogLevel = Spectrum.LogManager.LogLevel;
 
 namespace Spectrum
 {
@@ -14,6 +14,7 @@ namespace Spectrum
         private static Task? backgroundTask;
         private static readonly ConcurrentQueue<LabelingData> labelingQueue = new ConcurrentQueue<LabelingData>();
         private static readonly ConcurrentQueue<BackgroundImageData> backgroundQueue = new ConcurrentQueue<BackgroundImageData>();
+        private static ConfigManager<ConfigData> mainConfig = Program.mainConfig;
 
         private static List<YoloBoundingBox> GetBoundingBoxes(OpenCvSharp.Point[][] contours, int imageWidth, int imageHeight)
         {
@@ -57,9 +58,7 @@ namespace Spectrum
             }
             catch
             {
-                Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine("[ERROR] Failed to save labels to " + path);
-                Console.ResetColor();
+                LogManager.Log("[ERROR] Failed to save labels.", LogLevel.Error);
             }
         }
         private static void SaveMatAsImage(Mat mat, string path)
@@ -70,7 +69,7 @@ namespace Spectrum
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error saving image: {ex.Message}");
+                LogManager.Log($"[ERROR] Failed to save image: {ex.Message}", LogLevel.Error);
             }
         }
 
@@ -86,9 +85,7 @@ namespace Spectrum
                     }
                     catch
                     {
-                        Console.ForegroundColor = ConsoleColor.Red;
-                        Console.WriteLine("[ERROR] Failed to process labeling data.");
-                        Console.ResetColor();
+                        LogManager.Log("[ERROR] Failed to process labeling data.", LogLevel.Error);
                     }
                 }
 
@@ -100,9 +97,7 @@ namespace Spectrum
                     }
                     catch
                     {
-                        Console.ForegroundColor = ConsoleColor.Red;
-                        Console.WriteLine("[ERROR] Failed to process background image data.");
-                        Console.ResetColor();
+                        LogManager.Log("[ERROR] Failed to process background image data.", LogLevel.Error);
                     }
                 }
 
@@ -113,7 +108,7 @@ namespace Spectrum
 
         public static void AddToQueue(Mat mat, Rectangle bounds, OpenCvSharp.Point[][] filteredContours)
         {
-            if (!Config.AutoLabel || filteredContours.Length == 0)
+            if (!mainConfig.Data.AutoLabel || filteredContours.Length == 0)
                 return;
 
             if (labelingQueue.Count > 250)
@@ -130,12 +125,12 @@ namespace Spectrum
 
         public static void AddBackgroundImage(Mat mat, bool detected)
         {
-            if (!Config.AutoLabel)
+            if (!mainConfig.Data.AutoLabel)
                 return;
 
             detectionAttemps++;
 
-            if (detectionAttemps < Config.BackgroundImageInterval || detected)
+            if (detectionAttemps < mainConfig.Data.BackgroundImageInterval || detected)
                 return;
 
             if (backgroundQueue.Count > 250)

@@ -1,258 +1,154 @@
 ﻿using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 using OpenCvSharp;
+using System.Numerics;
+using System.Security.Cryptography.X509Certificates;
+using LogLevel = Spectrum.LogManager.LogLevel;
 
 namespace Spectrum
 {
-    public static class Config
+    public class ConfigManager<T> where T : new()
     {
-        private static FileSystemWatcher? _configWatcher;
-        #region Variables
+        private readonly string _fileName;
+        private FileSystemWatcher? _watcher;
+        private T _data;
 
-        public enum MovementType
+        public T Data => _data;
+
+        public ConfigManager(string fileName)
         {
-            Linear,
-            CubicBezier,
-            QuadraticBezier,
-            Adaptive
+            _fileName = fileName;
+            _data = new T();
+            LoadConfig();
         }
-        // Image settings
-        public static int ImageWidth { get; set; } = 640;
-        public static int ImageHeight { get; set; } = 640;
 
-        // Offset settings
-        public static double YOffsetPercent { get; set; } = 0.8;
-        public static double XOffsetPercent { get; set; } = 0.5;
-
-        // Aim settings
-        public static bool EnableAim { get; set; } = true;
-        public static bool ClosestToMouse { get; set; } = true; // if false it will use the center of the screen
-        public static int Keybind { get; set; } = 0x06; // first side button on mouse
-        public static double Sensitivity { get; set; } = 0.5;
-        public static MovementType AimMovementType { get; set; } = MovementType.Adaptive;
-
-        // Display settings
-        public static bool ShowDetectionWindow { get; set; } = true;
-
-        // Data collection settings
-        public static bool CollectData { get; set; } = false;
-        public static bool AutoLabel { get; set; } = false; // collect data needs to be enabled 
-        public static int BackgroundImageInterval { get; set; } = 10; // after 10 loops with no detection, save a background image
-
-        // Color settings
-        public static Scalar UpperHSV { get; set; } = new Scalar(150, 255, 229);
-        public static Scalar LowerHSV { get; set; } = new Scalar(150, 255, 229);
-        #endregion
-
-        public static void LoadConfig(bool silent = false)
+        public void LoadConfig(bool silent = false)
         {
-            if (File.Exists("config.json"))
+            if (File.Exists(_fileName))
             {
-                string config_content = File.ReadAllText("config.json");
                 try
                 {
-                    var config = JObject.Parse(config_content);
-                    bool error = false;
-
-                    var imageSettings = config["ImageSettings"];
-                    ImageWidth = imageSettings?["ImageWidth"]?.Value<int>() ?? config["ImageWidth"]?.Value<int>() ?? ImageWidth;
-                    ImageHeight = imageSettings?["ImageHeight"]?.Value<int>() ?? config["ImageHeight"]?.Value<int>() ?? ImageHeight;
-
-                    var offsetSettings = config["OffsetSettings"];
-                    YOffsetPercent = offsetSettings?["YOffsetPercent"]?.Value<double>() ?? config["YOffsetPercent"]?.Value<double>() ?? YOffsetPercent;
-                    XOffsetPercent = offsetSettings?["XOffsetPercent"]?.Value<double>() ?? config["XOffsetPercent"]?.Value<double>() ?? XOffsetPercent;
-
-                    var aimSettings = config["AimSettings"];
-                    EnableAim = aimSettings?["EnableAim"]?.Value<bool>() ?? config["EnableAim"]?.Value<bool>() ?? EnableAim;
-                    ClosestToMouse = aimSettings?["ClosestToMouse"]?.Value<bool>() ?? config["ClosestToMouse"]?.Value<bool>() ?? ClosestToMouse;
-                    Keybind = aimSettings?["Keybind"]?.Value<int>() ?? config["Keybind"]?.Value<int>() ?? Keybind;
-                    Sensitivity = aimSettings?["Sensitivity"]?.Value<double>() ?? config["Sensitivity"]?.Value<double>() ?? Sensitivity;
-                    AimMovementType = aimSettings?["AimMovementType"]?.Value<string>() switch
-                    {
-                        "Linear" => MovementType.Linear,
-                        "CubicBezier" => MovementType.CubicBezier,
-                        "Adaptive" => MovementType.Adaptive,
-                        _ => AimMovementType
-                    };
-
-                    var displaySettings = config["DisplaySettings"];
-                    ShowDetectionWindow = displaySettings?["ShowDetectionWindow"]?.Value<bool>() ?? config["ShowDetectionWindow"]?.Value<bool>() ?? ShowDetectionWindow;
-
-                    var dataSettings = config["DataCollectionSettings"];
-                    CollectData = dataSettings?["CollectData"]?.Value<bool>() ?? config["CollectData"]?.Value<bool>() ?? CollectData;
-                    AutoLabel = dataSettings?["AutoLabel"]?.Value<bool>() ?? config["AutoLabel"]?.Value<bool>() ?? AutoLabel;
-                    BackgroundImageInterval = dataSettings?["BackgroundImageInterval"]?.Value<int>() ?? config["BackgroundImageInterval"]?.Value<int>() ?? BackgroundImageInterval;
-
-                    var colorSettings = config["ColorSettings"];
-                    UpperHSV = colorSettings?["UpperHSV"]?.ToObject<Scalar>() ?? config["UpperHSV"]?.ToObject<Scalar>() ?? UpperHSV;
-                    LowerHSV = colorSettings?["LowerHSV"]?.ToObject<Scalar>() ?? config["LowerHSV"]?.ToObject<Scalar>() ?? LowerHSV;
-
-                    if (ImageWidth <= 0 || ImageHeight <= 0)
-                    {
-                        Console.ForegroundColor = ConsoleColor.Red;
-                        Console.WriteLine("[ERROR] Invalid image dimensions in config.json, using default values.");
-                        Console.ResetColor();
-                        ImageWidth = 640;
-                        ImageHeight = 640;
-                        error = true;
-                    }
-                    if (YOffsetPercent < 0 || YOffsetPercent > 1 || XOffsetPercent < 0 || XOffsetPercent > 1)
-                    {
-                        Console.ForegroundColor = ConsoleColor.Red;
-                        Console.WriteLine("[ERROR] Invalid offset percentages in config.json, using default values.");
-                        Console.ResetColor();
-                        YOffsetPercent = 0.8;
-                        XOffsetPercent = 0.5;
-                        error = true;
-                    }
-                    if (Keybind < 0 || Keybind > 255)
-                    {
-                        Console.ForegroundColor = ConsoleColor.Red;
-                        Console.WriteLine("[ERROR] Invalid keybind in config.json, using default value.");
-                        Console.ResetColor();
-                        Keybind = 0x06;
-                        error = true;
-                    }
-                    if (Sensitivity < 0 || Sensitivity > 2)
-                    {
-                        Console.ForegroundColor = ConsoleColor.Red;
-                        Console.WriteLine("[ERROR] Invalid sensitivity in config.json, using default value.");
-                        Console.ResetColor();
-                        Sensitivity = 0.5;
-                        error = true;
-                    }
-                    if (AutoLabel && !CollectData)
-                    {
-                        Console.ForegroundColor = ConsoleColor.Yellow;
-                        Console.WriteLine("[WARNING] AutoLabel is enabled but CollectData is not. Disabling AutoLabel.");
-                        Console.ResetColor();
-                        AutoLabel = false;
-                        error = true;
-                    }
-                    if (BackgroundImageInterval <= 0)
-                    {
-                        Console.ForegroundColor = ConsoleColor.Red;
-                        Console.WriteLine("[ERROR] Invalid BackgroundImageInterval in config.json, using default value.");
-                        Console.ResetColor();
-                        error = true;
-                    }
-                    if (error)
-                        SaveConfig();
-
-                    if (!silent)
-                    {
-                        Console.ForegroundColor = ConsoleColor.Green;
-                        Console.WriteLine("[INFO] Configuration loaded successfully.");
-                        Console.ResetColor();
-                    }
+                    var json = File.ReadAllText(_fileName);
+                    _data = JsonConvert.DeserializeObject<T>(json) ?? new T();
+                    if (!silent) LogManager.Log($"Loaded config {_fileName}.", LogLevel.Info);
                 }
                 catch
                 {
-                    Console.ForegroundColor = ConsoleColor.Red;
-                    Console.WriteLine("[ERROR] Error parsing config.json, using default values.");
-                    Console.ResetColor();
+                    LogManager.Log($"Failed to parse {_fileName}, using default values.", LogLevel.Error);
+                    _data = new T();
                     SaveConfig();
                 }
             }
             else
             {
-                Console.ForegroundColor = ConsoleColor.Yellow;
-                Console.WriteLine("[WARNING] config.json not found, using default values.");
-                Console.ResetColor();
+                LogManager.Log($"{_fileName} not found, creating a new one with default values.", LogLevel.Error);
+                _data = new T();
                 SaveConfig();
             }
         }
-        public static void SaveConfig()
+
+        public void SaveConfig()
         {
-            var config = new JObject
-            {
-                ["ImageSettings"] = new JObject
-                {
-                    ["ImageWidth"] = ImageWidth,
-                    ["ImageHeight"] = ImageHeight
-                },
-                ["OffsetSettings"] = new JObject
-                {
-                    ["YOffsetPercent"] = YOffsetPercent,
-                    ["XOffsetPercent"] = XOffsetPercent
-                },
-                ["AimSettings"] = new JObject
-                {
-                    ["EnableAim"] = EnableAim,
-                    ["ClosestToMouse"] = ClosestToMouse,
-                    ["Keybind"] = Keybind,
-                    ["Sensitivity"] = Sensitivity,
-                    ["AimMovementType"] = AimMovementType.ToString()
-                },
-                ["DisplaySettings"] = new JObject
-                {
-                    ["ShowDetectionWindow"] = ShowDetectionWindow
-                },
-                ["DataCollectionSettings"] = new JObject
-                {
-                    ["CollectData"] = CollectData,
-                    ["AutoLabel"] = AutoLabel,
-                    ["BackgroundImageInterval"] = BackgroundImageInterval
-                },
-                ["ColorSettings"] = new JObject
-                {
-                    ["UpperHSV"] = JToken.FromObject(UpperHSV),
-                    ["LowerHSV"] = JToken.FromObject(LowerHSV)
-                }
-            }; File.WriteAllText("config.json", config.ToString(Formatting.Indented));
+            File.WriteAllText(_fileName, JsonConvert.SerializeObject(_data, Formatting.Indented));
         }
 
-        public static void StartFileWatcher()
+        public void StartFileWatcher()
         {
-            if (_configWatcher != null)
-                return;
+            if (_watcher != null) return;
 
-            _configWatcher = new FileSystemWatcher(Directory.GetCurrentDirectory(), "config.json")
+            _watcher = new FileSystemWatcher(Directory.GetCurrentDirectory(), _fileName)
             {
                 NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.Size
             };
-
-            _configWatcher.Changed += OnConfigFileChanged;
-            _configWatcher.EnableRaisingEvents = true;
-
-            Console.ForegroundColor = ConsoleColor.Cyan;
-            Console.WriteLine("[INFO] File watcher started for config.json");
-            Console.ResetColor();
+            _watcher.Changed += OnConfigFileChanged;
+            _watcher.EnableRaisingEvents = true;
+            LogManager.Log($"File watcher started for {_fileName}.", LogLevel.Info);
         }
 
-        public static void StopFileWatcher()
+        public void StopFileWatcher()
         {
-            if (_configWatcher != null)
-            {
-                _configWatcher.EnableRaisingEvents = false;
-                _configWatcher.Changed -= OnConfigFileChanged;
-                _configWatcher.Dispose();
-                _configWatcher = null;
-
-                Console.ForegroundColor = ConsoleColor.Cyan;
-                Console.WriteLine("[INFO] File watcher stopped for config.json");
-                Console.ResetColor();
-            }
+            if (_watcher == null) return;
+            _watcher.EnableRaisingEvents = false;
+            _watcher.Changed -= OnConfigFileChanged;
+            _watcher.Dispose();
+            _watcher = null;
+            LogManager.Log($"File watcher stopped for {_fileName}.", LogLevel.Info);
         }
 
-        private static void OnConfigFileChanged(object sender, FileSystemEventArgs e)
+        private void OnConfigFileChanged(object sender, FileSystemEventArgs e)
         {
             Thread.Sleep(100);
-
             try
             {
                 LoadConfig(true);
-                Console.ForegroundColor = ConsoleColor.Green;
-                Console.WriteLine("[INFO] Configuration automatically reloaded due to file change.");
-                Console.ResetColor();
+                LogManager.Log($"Configuration reloaded successfully for {_fileName}.", LogLevel.Info);
             }
             catch (Exception ex)
             {
-                Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine($"[ERROR] Failed to reload configuration: {ex.Message}");
-                Console.ResetColor();
+                LogManager.Log($"Failed to reload configuration for {_fileName}: {ex.Message}", LogLevel.Error);
             }
         }
+    }
 
+    public enum MovementType
+    {
+        Linear,
+        CubicBezier,
+        QuadraticBezier,
+        Adaptive
+    }
+    public class ConfigData
+    {
+
+        // Image settings
+        public int ImageWidth { get; set; } = 640;
+        public int ImageHeight { get; set; } = 640;
+
+        // Offset settings
+        public double YOffsetPercent { get; set; } = 0.8;
+        public double XOffsetPercent { get; set; } = 0.5;
+
+        // Aim settings
+        public bool EnableAim { get; set; } = true;
+        public bool ClosestToMouse { get; set; } = true;
+        public Keys Keybind { get; set; } = Keys.XButton2;
+        public double Sensitivity { get; set; } = 0.5;
+        public MovementType AimMovementType { get; set; } = MovementType.Adaptive;
+        public bool EmaSmoothening { get; set; } = true;
+        public double EmaSmootheningFactor { get; set; } = 0.1;
+
+        // Display settings
+        public bool ShowDetectionWindow { get; set; } = true;
+        public bool DrawDetections { get; set; } = true;
+        public Vector4 DetectionColor { get; set; } = new Vector4(0.0f, 1.0f, 0.0f, 1.0f);
+        public bool ShowMenu { get; set; } = true;
+        public bool DrawFOV { get; set; } = false;
+        public Vector4 FOVColor { get; set; } = new Vector4(0.0f, 1.0f, 0.0f, 1.0f);
+
+        // Data collection settings
+        public bool CollectData { get; set; } = false;
+        public bool AutoLabel { get; set; } = false;
+        public int BackgroundImageInterval { get; set; } = 10;
+
+        // Color settings
+        public Scalar UpperHSV { get; set; } = new Scalar(150, 255, 229);
+        public Scalar LowerHSV { get; set; } = new Scalar(150, 255, 229);
+        public string SelectedColor { get; set; } = "Arsenal [Magenta]";
+    }
+    public class ColorData
+    {
+        public List<ColorInfo> Colors { get; set; } = new List<ColorInfo>();
+    }
+
+    public class ColorInfo
+    {
+        public string Name { get; set; }
+        public Scalar Upper { get; set; }
+        public Scalar Lower { get; set; }
+        public ColorInfo(string name, Scalar upper, Scalar lower)
+        {
+            Name = name;
+            Upper = upper;
+            Lower = lower;
+        }
     }
 }
