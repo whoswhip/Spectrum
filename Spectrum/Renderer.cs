@@ -311,18 +311,14 @@ namespace Spectrum
                 }
                 ImGui.SeparatorText("Logs");
 
-                ImGui.BeginChild("Logs", new Vector2(0, -34));
-                ImGui.Dummy(new Vector2(0, 4));
+                ImGui.BeginChild("Logs", new Vector2(0, -34), ImGuiChildFlags.AlwaysUseWindowPadding);
 
                 var _LogEntries = LogManager.LogEntries.ToList();
                 foreach (var log in _LogEntries)
                 {
-                    ImGui.Indent(8);
                     ImGui.Text(log.ToString());
-                    ImGui.Unindent(8);
                 }
 
-                ImGui.Dummy(new Vector2(0, 4));
                 ImGui.EndChild();
                 ImGui.Dummy(new Vector2(0, 1));
 
