@@ -16,9 +16,9 @@ namespace Spectrum
 
         private bool _vsync = true;
         private int _fpsLimit = 240;
-        private Keys _pendingKeybind = Keys.None;
-        private bool _waitingForKeybind = false;
-        private Task? _keybindTask = null;
+        private readonly Dictionary<string, bool> _waitingForKeybind = new();
+        private readonly Dictionary<string, Keys> _pendingKeybind = new();
+        private readonly Dictionary<string, Task?> _keybindTask = new();
         private readonly ConcurrentQueue<Keys> _keybindResults = new();
         private ConfigManager<ConfigData> mainConfig = Program.mainConfig;
         private ConfigManager<ColorData> colorConfig = Program.colorConfig;
@@ -67,27 +67,27 @@ namespace Spectrum
                 }
 
                 ImGui.SameLine();
-                if (!_waitingForKeybind)
+                if (!_waitingForKeybind.GetValueOrDefault("Aiming", false))
                 {
                     if (ImGui.Button(mainConfig.Data.Keybind.ToString()))
                     {
-                        _waitingForKeybind = true;
-                        _pendingKeybind = Keys.None;
-                        _keybindTask = Task.Run(async () =>
+                        _waitingForKeybind["Aiming"] = true;
+                        _pendingKeybind["Aiming"] = Keys.None;
+                        _keybindTask["Aiming"] = Task.Run(async () =>
                         {
                             var key = await InputManager.ListenForNextKeyOrMouseAsync();
-                            _pendingKeybind = key;
+                            _pendingKeybind["Aiming"] = key;
                         });
                     }
                 }
                 else
                 {
                     ImGui.Button("Listening...");
-                    if (_pendingKeybind != Keys.None)
+                    if (_pendingKeybind.GetValueOrDefault("Aiming", Keys.None) != Keys.None)
                     {
-                        mainConfig.Data.Keybind = _pendingKeybind;
-                        _pendingKeybind = Keys.None;
-                        _waitingForKeybind = false;
+                        mainConfig.Data.Keybind = _pendingKeybind["Aiming"];
+                        _pendingKeybind["Aiming"] = Keys.None;
+                        _waitingForKeybind["Aiming"] = false;
                     }
                 }
                 ImGui.SameLine();
@@ -277,7 +277,7 @@ namespace Spectrum
                 ImGui.EndTabItem();
             }
 
-            if (ImGui.BeginTabItem("Misc."))
+            if (ImGui.BeginTabItem("Settings"))
             {
                 bool ShowDetectionWindow = mainConfig.Data.ShowDetectionWindow;
                 if (ImGui.Checkbox("Show Detection Window", ref ShowDetectionWindow))
@@ -300,6 +300,15 @@ namespace Spectrum
                     mainConfig.Data.AutoLabel = AutoLabel;
                 }
 
+                if (ImGui.Checkbox("VSync", ref _vsync))
+                {
+                    VSync = _vsync;
+                }
+
+                if (ImGui.SliderInt("FPS Limit", ref _fpsLimit, 30, 480, "%d"))
+                {
+                    FPSLimit = _fpsLimit;
+                }
                 int BackgroundImageInterval = mainConfig.Data.BackgroundImageInterval;
                 if (ImGui.InputInt("Background Image Interval", ref BackgroundImageInterval, 1, 500))
                 {
@@ -311,16 +320,31 @@ namespace Spectrum
                     mainConfig.Data.BackgroundImageInterval = BackgroundImageInterval;
                 }
 
-
-                if (ImGui.Checkbox("VSync", ref _vsync))
+                if (!_waitingForKeybind.GetValueOrDefault("Menu Key", false))
                 {
-                    VSync = _vsync;
+                    if (ImGui.Button(mainConfig.Data.MenuKey.ToString()))
+                    {
+                        _waitingForKeybind["Menu Key"] = true;
+                        _pendingKeybind["Menu Key"] = Keys.None;
+                        _keybindTask["Menu Key"] = Task.Run(async () =>
+                        {
+                            var key = await InputManager.ListenForNextKeyOrMouseAsync();
+                            _pendingKeybind["Menu Key"] = key;
+                        });
+                    }
                 }
-
-                if (ImGui.SliderInt("FPS Limit", ref _fpsLimit, 30, 480, "%d"))
+                else
                 {
-                    FPSLimit = _fpsLimit;
+                    ImGui.Button("Listening...");
+                    if (_pendingKeybind.GetValueOrDefault("Menu Key", Keys.None) != Keys.None)
+                    {
+                        mainConfig.Data.MenuKey = _pendingKeybind["Menu Key"];
+                        _pendingKeybind["Menu Key"] = Keys.None;
+                        _waitingForKeybind["Menu Key"] = false;
+                    }
                 }
+                ImGui.SameLine();
+                ImGui.Text("Menu Keybind");
 
                 if (ImGui.Button("Save Configs"))
                 {

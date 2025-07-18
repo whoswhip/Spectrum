@@ -173,10 +173,10 @@ namespace Spectrum
                     mat.Dispose();
                     drawing.Dispose();
                 }
-                else if (SystemHelper.GetAsyncKeyState(0x2D) < 0)
+                else if (SystemHelper.GetAsyncKeyState((int)mainConfig.Data.MenuKey) < 0)
                 {
                     var now = DateTime.Now;
-                    if ((now - lastMenuToggle).TotalMilliseconds > 200)
+                    if ((now - lastMenuToggle).TotalMilliseconds > 175)
                     {
                         mainConfig.Data.ShowMenu = !mainConfig.Data.ShowMenu;
                         lastMenuToggle = now;

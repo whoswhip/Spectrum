@@ -121,6 +121,7 @@ namespace Spectrum
         public bool DrawDetections { get; set; } = true;
         public Vector4 DetectionColor { get; set; } = new Vector4(0.0f, 1.0f, 0.0f, 1.0f);
         public bool ShowMenu { get; set; } = true;
+        public Keys MenuKey { get; set; } = Keys.Insert;
         public bool DrawFOV { get; set; } = false;
         public Vector4 FOVColor { get; set; } = new Vector4(0.0f, 1.0f, 0.0f, 1.0f);
 
