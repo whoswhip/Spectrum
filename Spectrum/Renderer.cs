@@ -378,7 +378,7 @@ namespace Spectrum
 
                 ImGui.BeginChild("Logs", new Vector2(0, -34), ImGuiChildFlags.AlwaysUseWindowPadding);
 
-                var _LogEntries = LogManager.LogEntries.ToList();
+                var _LogEntries = LogManager.LogEntries;
                 foreach (var log in _LogEntries)
                 {
                     ImGui.Text(log.ToString());
