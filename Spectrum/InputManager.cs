@@ -8,14 +8,10 @@ namespace Spectrum
         private static extern void mouse_event(uint dwFlags, uint dx, uint dy, uint dwData, int dwExtraInfo);
 
         [DllImport("user32.dll")]
-        private static extern bool GetCursorPos(out POINT lpPoint);
+        private static extern bool GetCursorPos(out Point lpPoint);
         private static ConfigManager<ConfigData> mainConfig = Program.mainConfig;
+        private static Point lastDetection = new Point();
 
-        private struct POINT
-        {
-            public int X;
-            public int Y;
-        }
         // AIMMY V2 CODE - https://github.com/Babyhamsta/Aimmy/blob/2e906552673e359ded90383c5e97d79c8f38a2f2/Aimmy2/InputLogic/MouseManager.cs#L34-L50
         private static Point CubicBezier(Point start, Point end, Point control1, Point control2, double t)
         {
@@ -73,7 +69,7 @@ namespace Spectrum
 
         public static void MoveMouse(Point target)
         {
-            POINT reference = new POINT();
+            Point reference = new Point();
             if (mainConfig.Data.ClosestToMouse)
             {
                 GetCursorPos(out reference);
@@ -85,7 +81,7 @@ namespace Spectrum
                 reference.Y = SystemHelper.GetPrimaryScreenSize().Height / 2;
             }
 
-
+            lastDetection = target;
 
             Point start = new Point(reference.X, reference.Y);
             Point end = new Point(target.X, target.Y);
@@ -111,8 +107,33 @@ namespace Spectrum
             if (deltaX > mainConfig.Data.ImageWidth || deltaX < -mainConfig.Data.ImageWidth || deltaY > mainConfig.Data.ImageHeight || deltaY < -mainConfig.Data.ImageHeight)
                 return;
 
-
             mouse_event(0x0001, (uint)(deltaX), (uint)(deltaY), 0, 0);
+            ClickMouse();
+        }
+
+        public static void ClickMouse()
+        {
+            if (!mainConfig.Data.TriggerBot)
+                return;
+
+            var currentMousePosition = new Point();
+            if (mainConfig.Data.ClosestToMouse)
+            {
+                GetCursorPos(out currentMousePosition);
+            }
+            else
+            {
+                // center of the screen
+                currentMousePosition.X = SystemHelper.GetPrimaryScreenSize().Width / 2;
+                currentMousePosition.Y = SystemHelper.GetPrimaryScreenSize().Height / 2;
+            }
+
+            if (Math.Abs(currentMousePosition.X - lastDetection.X) < 25 && Math.Abs(currentMousePosition.Y - lastDetection.Y) < 25)
+            {
+                mouse_event(0x0002, 0, 0, 0, 0);
+                Thread.Sleep(5);
+                mouse_event(0x0004, 0, 0, 0, 0);
+            }
         }
         [DllImport("user32.dll")]
         private static extern short GetAsyncKeyState(int vKey);

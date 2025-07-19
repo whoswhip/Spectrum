@@ -98,6 +98,11 @@ namespace Spectrum
                 {
                     mainConfig.Data.ClosestToMouse = closestToMouse;
                 }
+                bool triggerBot = mainConfig.Data.TriggerBot;
+                if (ImGui.Checkbox("Trigger Bot", ref triggerBot))
+                {
+                    mainConfig.Data.TriggerBot = triggerBot;
+                }
 
                 float sensitivity = (float)mainConfig.Data.Sensitivity;
                 if (ImGui.SliderFloat("Sensitivity", ref sensitivity, 0.1f, 2.0f, "%.1f"))
