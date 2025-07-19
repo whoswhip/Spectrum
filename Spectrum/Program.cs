@@ -1,4 +1,5 @@
 ﻿using OpenCvSharp;
+using System.Diagnostics;
 using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
 
@@ -11,8 +12,13 @@ namespace Spectrum
         private static DateTime lastMenuToggle = DateTime.MinValue;
         public static ConfigManager<ConfigData> mainConfig = new ConfigManager<ConfigData>("bin\\configs\\config.json");
         public static ConfigManager<ColorData> colorConfig = new ConfigManager<ColorData>("bin\\configs\\colors.json");
+        public static long iterationCount = 0;
+        public static long totalTime = 0;
+        private static Stopwatch stopwatch = new Stopwatch();
+
         static void Main()
         {
+
             Thread renderThread = new Thread(() =>
             {
                 try
@@ -62,6 +68,7 @@ namespace Spectrum
             {
                 if (SystemHelper.GetAsyncKeyState((int)mainConfig.Data.Keybind) < 0)
                 {
+                    stopwatch.Restart();
                     bounds = new Rectangle(
                         (screenSize.Width - mainConfig.Data.ImageWidth) / 2,
                         (screenSize.Height - mainConfig.Data.ImageHeight) / 2,
@@ -78,7 +85,7 @@ namespace Spectrum
 
                     Cv2.FindContours(mat, out var contours, out var hierarchy, RetrievalModes.External, ContourApproximationModes.ApproxSimple);
 
-                    var filteredContours = contours.Where(c => Cv2.ContourArea(c) >= 100).ToArray();
+                    var filteredContours = contours.Where(c => Cv2.ContourArea(c) >= 50).ToArray();
 
                     var mergedContours = MergeOverlappingContours(filteredContours);
 
@@ -161,6 +168,11 @@ namespace Spectrum
                                 Cv2.WaitKey(1);
                             }
                         }
+                        if (mainConfig.Data.DebugMode)
+                        {
+                            iterationCount++;
+                            totalTime += stopwatch.ElapsedMilliseconds;
+                        }
                     }
                     else if (mainConfig.Data.ShowDetectionWindow || mainConfig.Data.CollectData)
                     {
@@ -172,6 +184,15 @@ namespace Spectrum
                     screenshot?.Dispose();
                     mat.Dispose();
                     drawing.Dispose();
+
+                    if (iterationCount >= 1000 && mainConfig.Data.DebugMode)
+                    {
+                        LogManager.Log($"Processed {iterationCount} iterations in {totalTime} ms.", LogManager.LogLevel.Info);
+                        int fps = (int)(iterationCount * 1000 / totalTime);
+                        LogManager.Log($"Average FPS: {fps}", LogManager.LogLevel.Info);
+                        iterationCount = 0;
+                        totalTime = 0;
+                    }
                 }
                 else if (SystemHelper.GetAsyncKeyState((int)mainConfig.Data.MenuKey) < 0)
                 {

@@ -115,6 +115,7 @@ namespace Spectrum
         public MovementType AimMovementType { get; set; } = MovementType.Adaptive;
         public bool EmaSmoothening { get; set; } = true;
         public double EmaSmootheningFactor { get; set; } = 0.1;
+        public bool TriggerBot { get; set; } = false;
 
         // Display settings
         public bool ShowDetectionWindow { get; set; } = true;
@@ -134,6 +135,9 @@ namespace Spectrum
         public Scalar UpperHSV { get; set; } = new Scalar(150, 255, 229);
         public Scalar LowerHSV { get; set; } = new Scalar(150, 255, 229);
         public string SelectedColor { get; set; } = "Arsenal [Magenta]";
+
+        // Misc
+        public bool DebugMode { get; set; } = false;
     }
     public class ColorData
     {

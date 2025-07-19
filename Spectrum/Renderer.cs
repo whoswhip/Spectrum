@@ -2,7 +2,6 @@
 using ImGuiNET;
 using OpenCvSharp;
 using System.Collections.Concurrent;
-using System.ComponentModel.DataAnnotations;
 using System.Diagnostics;
 using System.Numerics;
 
@@ -308,6 +307,12 @@ namespace Spectrum
                 if (ImGui.Checkbox("VSync", ref _vsync))
                 {
                     VSync = _vsync;
+                }
+
+                bool DebugMode = mainConfig.Data.DebugMode;
+                if (ImGui.Checkbox("Debug Mode", ref DebugMode))
+                {
+                    mainConfig.Data.DebugMode = DebugMode;
                 }
 
                 if (ImGui.SliderInt("FPS Limit", ref _fpsLimit, 30, 480, "%d"))
