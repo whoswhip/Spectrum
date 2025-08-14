@@ -96,12 +96,28 @@ namespace Spectrum
         QuadraticBezier,
         Adaptive
     }
+    public enum MovementMethod
+    {
+        MouseEvent,
+        Makcu
+    }
+    public enum FovType
+    {
+        Circle,
+        Rectangle
+    }
+    public enum CaptureMethod
+    {
+        GDI,
+        DirectX
+    }
     public class ConfigData
     {
 
         // Image settings
         public int ImageWidth { get; set; } = 640;
         public int ImageHeight { get; set; } = 640;
+        public CaptureMethod CaptureMethod { get; set; } = CaptureMethod.DirectX;
 
         // Offset settings
         public double YOffsetPercent { get; set; } = 0.8;
@@ -115,15 +131,23 @@ namespace Spectrum
         public MovementType AimMovementType { get; set; } = MovementType.Adaptive;
         public bool EmaSmoothening { get; set; } = true;
         public double EmaSmootheningFactor { get; set; } = 0.1;
+        
+        public MovementMethod MovementMethod { get; set; } = MovementMethod.MouseEvent;
+
+        // Triggerbot settings
         public bool TriggerBot { get; set; } = false;
+        public Keys TriggerKey { get; set; } = Keys.XButton2;
+        public int TriggerDelay { get; set; } = 50; // milliseconds
+        public int TriggerRadius { get; set; } = 15; // pixels
+        public int TriggerDuration { get; set; } = 100; // milliseconds
 
         // Display settings
-        public bool ShowDetectionWindow { get; set; } = true;
         public bool DrawDetections { get; set; } = true;
         public Vector4 DetectionColor { get; set; } = new Vector4(0.0f, 1.0f, 0.0f, 1.0f);
         public bool ShowMenu { get; set; } = true;
         public Keys MenuKey { get; set; } = Keys.Insert;
         public bool DrawFOV { get; set; } = false;
+        public FovType FOVType { get; set; } = FovType.Rectangle;
         public Vector4 FOVColor { get; set; } = new Vector4(0.0f, 1.0f, 0.0f, 1.0f);
 
         // Data collection settings

@@ -1,10 +1,12 @@
 ﻿using System.Diagnostics;
 using System.Text;
 
+
 namespace Spectrum
 {
     public class LogManager
     {
+        private static ConfigManager<ConfigData> mainConfig = Program.mainConfig;
         public enum LogLevel
         {
             Debug,
@@ -33,6 +35,12 @@ namespace Spectrum
         public static IReadOnlyList<LogEntry> LogEntries => _logEntries.AsReadOnly();
         public static void Log(string message, LogLevel level = LogLevel.Info)
         {
+            if (string.IsNullOrWhiteSpace(message)) return;
+            if (mainConfig == null)
+                mainConfig = Program.mainConfig;
+            if (level == LogLevel.Debug && (!mainConfig.Data.DebugMode && !Debugger.IsAttached))
+                return;
+
             string logMessage = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [{level}] {message}";
             Debug.WriteLine(logMessage);
             _logEntries.Add(new LogEntry(level, message));

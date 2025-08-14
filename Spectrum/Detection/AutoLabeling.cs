@@ -3,7 +3,7 @@ using System.Collections.Concurrent;
 using System.Text;
 using LogLevel = Spectrum.LogManager.LogLevel;
 
-namespace Spectrum
+namespace Spectrum.Detection
 {
     public static class AutoLabeling
     {
@@ -15,6 +15,7 @@ namespace Spectrum
         private static readonly ConcurrentQueue<LabelingData> labelingQueue = new ConcurrentQueue<LabelingData>();
         private static readonly ConcurrentQueue<BackgroundImageData> backgroundQueue = new ConcurrentQueue<BackgroundImageData>();
         private static ConfigManager<ConfigData> mainConfig = Program.mainConfig;
+        public static bool Started = false;
 
         private static List<YoloBoundingBox> GetBoundingBoxes(OpenCvSharp.Point[][] contours, int imageWidth, int imageHeight)
         {
@@ -49,6 +50,9 @@ namespace Spectrum
         {
             try
             {
+                if (!Directory.Exists(Path.GetDirectoryName(path)))
+                    Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+
                 var labelContent = new StringBuilder();
                 foreach (var box in boundingBoxes)
                 {
@@ -56,15 +60,17 @@ namespace Spectrum
                 }
                 File.WriteAllText(path, labelContent.ToString());
             }
-            catch
+            catch (Exception ex)
             {
-                LogManager.Log("[ERROR] Failed to save labels.", LogLevel.Error);
+                LogManager.Log($"[ERROR] Failed to save labels. Error: {ex.Message}", LogLevel.Error);
             }
         }
         private static void SaveMatAsImage(Mat mat, string path)
         {
             try
             {
+                if (!Directory.Exists(Path.GetDirectoryName(path)))
+                    Directory.CreateDirectory(Path.GetDirectoryName(path)!);
                 Cv2.ImWrite(path, mat);
             }
             catch (Exception ex)
@@ -108,6 +114,8 @@ namespace Spectrum
 
         public static void AddToQueue(Mat mat, Rectangle bounds, OpenCvSharp.Point[][] filteredContours)
         {
+
+            LogManager.Log($"Adding {filteredContours.Length} contours to labeling queue.", LogLevel.Debug);
             if (!mainConfig.Data.AutoLabel || filteredContours.Length == 0)
                 return;
 
@@ -125,9 +133,6 @@ namespace Spectrum
 
         public static void AddBackgroundImage(Mat mat, bool detected)
         {
-            if (!mainConfig.Data.AutoLabel)
-                return;
-
             detectionAttemps++;
 
             if (detectionAttemps < mainConfig.Data.BackgroundImageInterval || detected)
@@ -202,6 +207,8 @@ namespace Spectrum
         {
             if (cancellationTokenSource != null)
                 return;
+            LogManager.Log("Starting auto labeling...", LogLevel.Info);
+            Started = true;
             cancellationTokenSource = new CancellationTokenSource();
             backgroundTask = Task.Run(() => LabelingLoop(cancellationTokenSource.Token));
         }
@@ -209,6 +216,9 @@ namespace Spectrum
         {
             if (cancellationTokenSource == null)
                 return;
+
+            LogManager.Log("Stopping auto labeling...", LogLevel.Info);
+            Started = false;
             cancellationTokenSource.Cancel();
             backgroundTask?.Wait();
             cancellationTokenSource.Dispose();
