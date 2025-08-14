@@ -164,8 +164,8 @@ namespace Spectrum.Detection
                         string imageFileName = $"image_{imageCount:D6}.jpg";
                         string labelFileName = $"image_{imageCount:D6}.txt";
 
-                        string imagePath = Path.Combine("dataset/images", imageFileName);
-                        string labelPath = Path.Combine("dataset/labels", labelFileName);
+                        string imagePath = Path.Combine("bin/dataset/images", imageFileName);
+                        string labelPath = Path.Combine("bin/dataset/labels", labelFileName);
 
                         SaveMatAsImage(data.Mat, imagePath);
 
@@ -189,7 +189,7 @@ namespace Spectrum.Detection
                     lock (lockObject)
                     {
                         string imageFileName = $"image_{imageCount:D6}.jpg";
-                        string imagePath = Path.Combine("dataset/images", imageFileName);
+                        string imagePath = Path.Combine("bin/dataset/images", imageFileName);
 
                         SaveMatAsImage(data.Mat, imagePath);
 
