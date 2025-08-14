@@ -8,6 +8,8 @@ Spectrum is a semi-universal colorbot that uses C# and OpenCV for image processi
 - IMGui Menu
 - FOV Overlay
 - Detection Overlay
+- Triggerbot
+- Makcu Support
 
 ## Dataset Collection
 When `CollectData` and `AutoLabel` are enabled, Spectrum automatically generates:
