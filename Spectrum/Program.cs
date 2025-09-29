@@ -38,7 +38,7 @@ namespace Spectrum
             });
             renderThread.Start();
 
-            string[] dirs = { "bin", "bin/dataset", "bin/dataset/images", "bin/dataset/labels", "bin/logs", "bin/configs" };
+            string[] dirs = ["bin", "bin/dataset", "bin/dataset/images", "bin/dataset/labels", "bin/logs", "bin/configs"];
             foreach (var dir in dirs)
             {
                 if (!Directory.Exists(dir))
@@ -48,7 +48,6 @@ namespace Spectrum
                 }
             }
 
-            var screenSize = SystemHelper.GetPrimaryScreenSize();
             mainConfig.LoadConfig();
             mainConfig.StartFileWatcher();
 
@@ -59,7 +58,7 @@ namespace Spectrum
 
             if (colorConfig.Data.Colors.Count == 0)
             {
-                colorConfig.Data.Colors.Add(new ColorInfo("Arsenal [Magenta]", new Scalar(150, 255, 229), new Scalar(150, 255, 229)));
+                colorConfig.Data.Colors.Add(new ColorInfo("Arsenal [Magenta]", new Scalar(179, 255, 255), new Scalar(150, 255, 255)));
                 colorConfig.Data.Colors.Add(new ColorInfo("Combat Surf [Red]", new Scalar(0, 255, 255), new Scalar(0, 255, 255)));
                 colorConfig.SaveConfig();
                 colorConfig.LoadConfig(true);

@@ -1,4 +1,5 @@
-﻿using Spectrum.Input.InputLibraries.Makcu;
+﻿using Spectrum.Input.InputLibraries.Arduino;
+using Spectrum.Input.InputLibraries.Makcu;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using MouseEvent = Spectrum.Input.InputLibraries.MouseEvent.MouseMain;
@@ -7,9 +8,6 @@ namespace Spectrum.Input
 {
     public static class InputManager
     {
-        [DllImport("user32.dll")]
-        private static extern void mouse_event(uint dwFlags, uint dx, uint dy, uint dwData, int dwExtraInfo);
-
         [DllImport("user32.dll")]
         public static extern bool GetCursorPos(out Point lpPoint);
         private static ConfigManager<ConfigData> mainConfig = Program.mainConfig;
@@ -67,6 +65,7 @@ namespace Spectrum.Input
                 MovementType.Linear => MovementPaths.LinearInterpolation(start, end, effSensitivity),
                 MovementType.Adaptive => MovementPaths.AdaptiveMovement(start, end, effSensitivity),
                 MovementType.QuadraticBezier => MovementPaths.CurvedMovement(start, end, effSensitivity),
+                MovementType.PerlinNoise => MovementPaths.PerlinNoiseMovement(start, end, effSensitivity),
                 _ => end
             };
 
@@ -90,10 +89,13 @@ namespace Spectrum.Input
                     MouseEvent.Move(deltaX, deltaY);
                     break;
                 case MovementMethod.Makcu:
-                    if (EnsureMakcuReady())
+                    if (EnsureMakcuReady() && MakcuMain.MakcuInstance != null)
                         MakcuMain.MakcuInstance.Move(deltaX, deltaY);
                     else
                         MouseEvent.Move(deltaX, deltaY);
+                    break;
+                case MovementMethod.Arduino:
+                    ArduinoMain.Move(deltaX, deltaY);
                     break;
                 default:
                     MouseEvent.Move(deltaX, deltaY);
@@ -132,10 +134,13 @@ namespace Spectrum.Input
                         MouseEvent.ClickDown();
                         break;
                     case MovementMethod.Makcu:
-                        if (EnsureMakcuReady())
+                        if (EnsureMakcuReady() && MakcuMain.MakcuInstance != null)
                             MakcuMain.MakcuInstance.Press(MakcuMouseButton.Left);
                         else
                             MouseEvent.ClickDown();
+                        break;
+                    case MovementMethod.Arduino:
+                        ArduinoMain.ClickDown();
                         break;
                     default:
                         MouseEvent.ClickDown();
@@ -148,10 +153,13 @@ namespace Spectrum.Input
                         MouseEvent.ClickUp();
                         break;
                     case MovementMethod.Makcu:
-                        if (EnsureMakcuReady())
+                        if (EnsureMakcuReady() && MakcuMain.MakcuInstance != null)
                             MakcuMain.MakcuInstance.Release(MakcuMouseButton.Left);
                         else
                             MouseEvent.ClickUp();
+                        break;
+                    case MovementMethod.Arduino:
+                        ArduinoMain.ClickUp();
                         break;
                     default:
                         MouseEvent.ClickUp();
@@ -183,7 +191,7 @@ namespace Spectrum.Input
 
             Action<MakcuMouseButton, bool>? makcuHandler = null;
             bool subscribedToMakcu = false;
-            if (mainConfig.Data.MovementMethod == MovementMethod.Makcu && EnsureMakcuReady())
+            if (mainConfig.Data.MovementMethod == MovementMethod.Makcu && EnsureMakcuReady() && MakcuMain.MakcuInstance != null)
             {
                 makcuHandler = (btn, isPressed) =>
                 {

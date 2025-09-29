@@ -14,23 +14,23 @@ namespace Spectrum.Input.InputLibraries.Makcu
 
     public class MakcuMouse : IDisposable
     {
-        private static readonly byte[] BaudChangeCommand = { 0xDE, 0xAD, 0x05, 0x00, 0xA5, 0x00, 0x09, 0x3D, 0x00 };
+        private static readonly byte[] BaudChangeCommand = [0xDE, 0xAD, 0x05, 0x00, 0xA5, 0x00, 0x09, 0x3D, 0x00];
 
-        private SerialPort _serialPort;
+        private SerialPort? _serialPort;
         private readonly bool _debugLogging;
         private readonly bool _sendInitCommands;
 
-        private readonly object _serialLock = new object();
+        private readonly object _serialLock = new();
         private bool _isInitializedAndConnected = false;
-        private Thread _listenerThread;
-        private ManualResetEventSlim _stopListenerEvent = new ManualResetEventSlim(false);
+        private Thread? _listenerThread;
+        private ManualResetEventSlim _stopListenerEvent = new(false);
         private volatile bool _pauseListener = false;
 
-        private readonly Dictionary<MakcuMouseButton, bool> _buttonStates = new Dictionary<MakcuMouseButton, bool>();
+        private readonly Dictionary<MakcuMouseButton, bool> _buttonStates = [];
 
-        public event Action<MakcuMouseButton, bool> ButtonStateChanged;
+        public event Action<MakcuMouseButton, bool>? ButtonStateChanged;
 
-        public string PortName { get; private set; }
+        public string? PortName { get; private set; }
         public int BaudRate => _serialPort?.BaudRate ?? (_isInitializedAndConnected ? 4000000 : 115200);
         public bool IsInitializedAndConnected => _isInitializedAndConnected && _serialPort != null && _serialPort.IsOpen;
 
@@ -65,13 +65,13 @@ namespace Spectrum.Input.InputLibraries.Makcu
             catch (Exception ex)
             {
                 Log($"Error getting COM port list: {ex.Message}. Cannot continue search.");
-                return null;
+                return "";
             }
 
-            if (availablePorts == null || !availablePorts.Any())
+            if (availablePorts == null || availablePorts.Length == 0)
             {
                 Log("No COM ports available according to SerialPort.GetPortNames().");
-                return null;
+                return "";
             }
 
             Log($"Available COM ports: {string.Join(", ", availablePorts)}. Testing each one...");
@@ -79,7 +79,7 @@ namespace Spectrum.Input.InputLibraries.Makcu
             foreach (string portName in availablePorts)
             {
                 Log($"Testing port: {portName}");
-                SerialPort testPort = null;
+                SerialPort? testPort = null;
                 try
                 {
 
@@ -121,7 +121,7 @@ namespace Spectrum.Input.InputLibraries.Makcu
 
                     Log($"Response from 'km.version()' on {portName}: '{response}'");
 
-                    if (!string.IsNullOrEmpty(response) && (response.Contains("KMBOX") || response.Contains("Makcu") || response.Contains("MAKCU") || response.StartsWith("v") || char.IsDigit(response.FirstOrDefault())))
+                    if (!string.IsNullOrEmpty(response) && (response.Contains("KMBOX") || response.Contains("Makcu") || response.Contains("MAKCU") || response.StartsWith('v') || char.IsDigit(response.FirstOrDefault())))
                     {
                         Log($"Makcu device found on port: {portName}! Version response: '{response}'");
                         testPort.Close();
@@ -157,7 +157,7 @@ namespace Spectrum.Input.InputLibraries.Makcu
             }
 
             Log("Makcu device not found on any available COM ports after connection test.");
-            return null;
+            return "";
         }
 
 
@@ -252,7 +252,7 @@ namespace Spectrum.Input.InputLibraries.Makcu
             }
         }
 
-        private bool SendCommandInternal(string command, bool expectResponse, out string responseText, int responseTimeoutMs = 200)
+        private bool SendCommandInternal(string command, bool expectResponse, out string? responseText, int responseTimeoutMs = 200)
         {
             responseText = null;
             if (!_isInitializedAndConnected || _serialPort == null || !_serialPort.IsOpen)
@@ -286,7 +286,7 @@ namespace Spectrum.Input.InputLibraries.Makcu
                     if (expectResponse)
                     {
                         var stopwatch = Stopwatch.StartNew();
-                        StringBuilder sb = new StringBuilder();
+                        StringBuilder sb = new();
                         string commandTrimmed = command.Trim();
                         bool firstLineIsEcho = true;
 
@@ -307,7 +307,7 @@ namespace Spectrum.Input.InputLibraries.Makcu
                                     {
                                         if (sb.Length > 0) continue;
                                     }
-                                    if (sb.Length > 0) sb.Append("\n");
+                                    if (sb.Length > 0) sb.Append('\n');
                                     sb.Append(line);
                                 }
                                 if (_serialPort.BytesToRead == 0 && sb.Length > 0)
@@ -367,7 +367,7 @@ namespace Spectrum.Input.InputLibraries.Makcu
                 {3, MakcuMouseButton.Mouse4}, {4, MakcuMouseButton.Mouse5}
             };
 
-            byte[] packetHeader = { 0x6B, 0x6D, 0x2E };
+            byte[] packetHeader = [0x6B, 0x6D, 0x2E];
             int currentHeaderIndex = 0;
 
             while (!_stopListenerEvent.IsSet)
@@ -428,7 +428,7 @@ namespace Spectrum.Input.InputLibraries.Makcu
                                             if (debug)
                                             {
                                                 var pressedButtons = _buttonStates.Where(kvp => kvp.Value).Select(kvp => kvp.Key.ToString()).ToArray();
-                                                Log($"Listener: Button states updated. Mask: 0x{currentMask:X2} -> {(pressedButtons.Any() ? string.Join(", ", pressedButtons) : "None")}");
+                                                Log($"Listener: Button states updated. Mask: 0x{currentMask:X2} -> {(pressedButtons.Length != 0 ? string.Join(", ", pressedButtons) : "None")}");
                                             }
                                         }
                                     }
@@ -502,11 +502,11 @@ namespace Spectrum.Input.InputLibraries.Makcu
         public bool MoveBezier(int x, int y, int segments, int ctrlX, int ctrlY) => SendCommandInternal($"km.move({x},{y},{segments},{ctrlX},{ctrlY})", false, out _);
         public bool Scroll(int delta) => SendCommandInternal($"km.wheel({delta})", false, out _);
 
-        public string GetKmVersion()
+        public string? GetKmVersion()
         {
-            return SendCommandInternal("km.version()", true, out string response, 500) ? response : null;
+            return SendCommandInternal("km.version()", true, out string? response, 500) ? response : null;
         }
-        private string GetButtonString(MakcuMouseButton button)
+        private static string GetButtonString(MakcuMouseButton button)
         {
             switch (button)
             {

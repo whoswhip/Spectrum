@@ -4,6 +4,39 @@ namespace Spectrum.Input
     public class MovementPaths
     {
         private static double Clamp01(double t) => t < 0 ? 0 : (t > 1 ? 1 : t);
+        private static readonly int[] _permutation = GeneratePermutation();
+        private static readonly int[] _p;
+        private static double _perlinTime = 0.0;
+
+        static MovementPaths()
+        {
+            _p = new int[512];
+            for (int i = 0; i < 256; i++)
+            {
+                _p[256 + i] = _p[i] = _permutation[i];
+            }
+        }
+
+        private static double Fade(double t) => t * t * t * (t * (t * 6 - 15) + 10);
+        private static double Lerp(double a, double b, double t) => a + t * (b - a);
+        private static double Grad(int hash, double x)
+        {
+            int h = hash & 15;
+            double grad = 1 + (h & 7);
+            if ((h & 8) != 0) grad = -grad;
+            return grad * x;
+        }
+        private static double Perlin1D(double x)
+        {
+            int X = (int)Math.Floor(x) & 255;
+            x -= Math.Floor(x);
+            double u = Fade(x);
+            int a = _p[X];
+            int b = _p[X + 1];
+            double res = Lerp(Grad(a, x), Grad(b, x - 1), u);
+            return res * 0.188;
+        }
+
         public static Point CubicBezier(Point start, Point end, Point control1, Point control2, double t)
         {
             t = Clamp01(t);
@@ -79,6 +112,31 @@ namespace Spectrum.Input
             int newY = (int)Math.Round(start.Y + directionY * stepSize);
             return new Point(newX, newY);
         }
+        public static Point PerlinNoiseMovement(Point start, Point end, double t, double amplitudeFraction = 0.2, double frequency = 1.5)
+        {
+            t = Clamp01(t);
+            double dx = end.X - start.X;
+            double dy = end.Y - start.Y;
+            double distance = Math.Sqrt(dx * dx + dy * dy);
+            if (distance == 0 || t == 0) return start;
+
+            double baseX = start.X + dx * t;
+            double baseY = start.Y + dy * t;
+
+            _perlinTime += t * 0.75;
+            double noise = Perlin1D(_perlinTime * frequency);
+
+            double nx = -dy / distance;
+            double ny = dx / distance;
+
+            double offsetMag = amplitudeFraction * distance * t;
+            double ox = nx * noise * offsetMag;
+            double oy = ny * noise * offsetMag;
+
+            int finalX = (int)Math.Round(baseX + ox);
+            int finalY = (int)Math.Round(baseY + oy);
+            return new Point(finalX, finalY);
+        }
         public static double EmaSmoothing(double previousValue, double currentValue, double smoothingFactor)
         {
             smoothingFactor = Math.Max(0, Math.Min(1, smoothingFactor));
@@ -91,6 +149,22 @@ namespace Spectrum.Input
             int x = (int)Math.Round(EmaSmoothing(previous.X, current.X, smoothingFactor));
             int y = (int)Math.Round(EmaSmoothing(previous.Y, current.Y, smoothingFactor));
             return new Point(x, y);
+        }
+
+
+        private static int[] GeneratePermutation()
+        {
+            int[] perm = new int[256];
+            for (int i = 0; i < 256; i++) perm[i] = i;
+            string user = Environment.UserName;
+            int seed = Environment.TickCount + user.GetHashCode();
+            Random rand = new(seed);
+            for (int i = 255; i > 0; i--)
+            {
+                int j = rand.Next(i + 1);
+                (perm[i], perm[j]) = (perm[j], perm[i]);
+            }
+            return perm;
         }
     }
 }

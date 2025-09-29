@@ -1,7 +1,6 @@
 ﻿using Newtonsoft.Json;
 using OpenCvSharp;
 using System.Numerics;
-using System.Security.Cryptography.X509Certificates;
 using LogLevel = Spectrum.LogManager.LogLevel;
 
 namespace Spectrum
@@ -94,12 +93,14 @@ namespace Spectrum
         Linear,
         CubicBezier,
         QuadraticBezier,
-        Adaptive
+        Adaptive,
+        PerlinNoise
     }
     public enum MovementMethod
     {
         MouseEvent,
-        Makcu
+        Makcu,
+        Arduino
     }
     public enum FovType
     {
@@ -131,7 +132,7 @@ namespace Spectrum
         public MovementType AimMovementType { get; set; } = MovementType.Adaptive;
         public bool EmaSmoothening { get; set; } = true;
         public double EmaSmootheningFactor { get; set; } = 0.1;
-        
+
         public MovementMethod MovementMethod { get; set; } = MovementMethod.MouseEvent;
 
         // Triggerbot settings
@@ -140,6 +141,8 @@ namespace Spectrum
         public int TriggerDelay { get; set; } = 50; // milliseconds
         public int TriggerRadius { get; set; } = 15; // pixels
         public int TriggerDuration { get; set; } = 100; // milliseconds
+        public bool DrawTriggerRadius { get; set; } = false;
+        public Vector4 TriggerRadiusColor { get; set; } = new Vector4(1.0f, 0.0f, 0.0f, 1.0f);
 
         // Display settings
         public bool DrawDetections { get; set; } = true;
@@ -156,8 +159,8 @@ namespace Spectrum
         public int BackgroundImageInterval { get; set; } = 10;
 
         // Color settings
-        public Scalar UpperHSV { get; set; } = new Scalar(150, 255, 229);
-        public Scalar LowerHSV { get; set; } = new Scalar(150, 255, 229);
+        public Scalar UpperHSV { get; set; } = new Scalar(179, 255, 255);
+        public Scalar LowerHSV { get; set; } = new Scalar(150, 255, 255);
         public string SelectedColor { get; set; } = "Arsenal [Magenta]";
 
         // Misc
@@ -165,19 +168,13 @@ namespace Spectrum
     }
     public class ColorData
     {
-        public List<ColorInfo> Colors { get; set; } = new List<ColorInfo>();
+        public List<ColorInfo> Colors { get; set; } = [];
     }
 
-    public class ColorInfo
+    public class ColorInfo(string name, Scalar upper, Scalar lower)
     {
-        public string Name { get; set; }
-        public Scalar Upper { get; set; }
-        public Scalar Lower { get; set; }
-        public ColorInfo(string name, Scalar upper, Scalar lower)
-        {
-            Name = name;
-            Upper = upper;
-            Lower = lower;
-        }
+        public string Name { get; set; } = name;
+        public Scalar Upper { get; set; } = upper;
+        public Scalar Lower { get; set; } = lower;
     }
 }

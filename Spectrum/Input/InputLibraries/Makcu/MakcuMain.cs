@@ -4,7 +4,7 @@ namespace Spectrum.Input.InputLibraries.Makcu
 {
     internal class MakcuMain
     {
-        public static MakcuMouse MakcuInstance { get; private set; }
+        public static MakcuMouse? MakcuInstance { get; private set; }
 
         private static bool _isMakcuLoaded = false;
 
@@ -45,7 +45,7 @@ namespace Spectrum.Input.InputLibraries.Makcu
                     return false;
                 }
 
-                string version = MakcuInstance.GetKmVersion();
+                string? version = MakcuInstance.GetKmVersion();
 
                 _isMakcuLoaded = true;
 
@@ -53,7 +53,7 @@ namespace Spectrum.Input.InputLibraries.Makcu
 
                 return true;
             }
-            catch (Exception ex)
+            catch
             {
                 _isMakcuLoaded = false;
                 if (MakcuInstance != null && MakcuInstance.IsInitializedAndConnected)
@@ -69,10 +69,7 @@ namespace Spectrum.Input.InputLibraries.Makcu
         public static void Unload()
         {
             UnsubscribeFromButtonEvents();
-            if (MakcuInstance != null)
-            {
-                MakcuInstance.Close();
-            }
+            MakcuInstance?.Close();
             _isMakcuLoaded = false;
             LogManager.Log("MakcuMain: Makcu device unloaded/closed.", LogLevel.Debug);
         }

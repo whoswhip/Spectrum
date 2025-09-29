@@ -110,16 +110,20 @@ namespace Spectrum.Detection
                                     bestMaxY = maxY;
                                 }
 
-                                if (renderer != null && mainConfig.Data.DrawDetections)
+                                if (renderer != null)
                                 {
-                                    var _rect = new Rectangle(
-                                        minX + bounds.X,
-                                        minY + bounds.Y,
-                                        (maxX - minX + 1),
-                                        (maxY - minY + 1)
-                                    );
-                                    renderer.AddRect(_rect, mainConfig.Data.DetectionColor, 1.0f);
+                                    if (mainConfig.Data.DrawDetections)
+                                    {
+                                        var _rect = new Rectangle(
+                                            minX + bounds.X,
+                                            minY + bounds.Y,
+                                            (maxX - minX + 1),
+                                            (maxY - minY + 1)
+                                        );
+                                        renderer.AddRect(_rect, mainConfig.Data.DetectionColor, 1.0f);
+                                    }
                                 }
+
                             }
 
                             if (closestContour != null)
@@ -148,6 +152,10 @@ namespace Spectrum.Detection
                                 if (mainConfig.Data.TriggerBot)
                                 {
                                     var _ = InputManager.ClickMouse();
+                                }
+                                if (renderer != null && mainConfig.Data.DrawTriggerRadius)
+                                {
+                                    renderer.AddCircle(new System.Numerics.Vector2(targetX, targetY), mainConfig.Data.TriggerRadius, new System.Numerics.Vector4(1.0f, 0.0f, 0.0f, 1.0f), 100);
                                 }
                             }
                             if (mainConfig.Data.DebugMode)

@@ -1,17 +1,18 @@
 ﻿using ClickableTransparentOverlay;
 using ImGuiNET;
 using OpenCvSharp;
+using Spectrum.Detection;
 using Spectrum.Input;
+using Spectrum.Input.InputLibraries.Arduino;
 using Spectrum.Input.InputLibraries.Makcu;
 using System.Collections.Concurrent;
 using System.Diagnostics;
-using System.Numerics;
 using System.Globalization;
-using Spectrum.Detection;
+using System.Numerics;
 
 namespace Spectrum
 {
-    class Renderer : Overlay
+    partial class Renderer : Overlay
     {
         static (int width, int height) screenSize = SystemHelper.GetPrimaryScreenSize();
         private List<Action<ImDrawListPtr>> drawCommands = new List<Action<ImDrawListPtr>>();
@@ -28,6 +29,7 @@ namespace Spectrum
         private ConfigManager<ColorData> colorConfig = Program.colorConfig;
         private string ColorName = "New Color";
         private static bool scrollToBottom = true;
+        private ColorInfo? selectedColor = null;
 
         public Renderer(CaptureManager captureManager) : base("Spectrum", screenSize.width, screenSize.width)
         {
@@ -77,9 +79,9 @@ namespace Spectrum
                     }
 
                     ImGui.SameLine();
-                    ImGui.Text("Enable Aiming");
+                    ImGui.TextUnformatted("Enable Aiming");
 
-                    ImGui.SameLine(ImGui.GetContentRegionAvail().X - ImGui.CalcTextSize(mainConfig.Data.Keybind.ToString()).X);
+                    ImGui.SameLine(ImGui.GetContentRegionAvail().X - ImGui.CalcTextSize(_waitingForKeybind.GetValueOrDefault("Aiming") ? "Listening..." : mainConfig.Data.Keybind.ToString()).X);
                     if (!_waitingForKeybind.GetValueOrDefault("Aiming", false))
                     {
                         if (ImGui.Button($"{mainConfig.Data.Keybind.ToString()}###AimKeybind"))
@@ -105,7 +107,7 @@ namespace Spectrum
                     }
 
                     bool closestToMouse = mainConfig.Data.ClosestToMouse;
-                    if (ImGui.Checkbox("Closest to Mouse", ref closestToMouse))
+                    if (ImGui.Checkbox(" Closest to Mouse", ref closestToMouse))
                     {
                         mainConfig.Data.ClosestToMouse = closestToMouse;
                     }
@@ -139,7 +141,8 @@ namespace Spectrum
                         foreach (MovementType type in Enum.GetValues(typeof(MovementType)))
                         {
                             bool isSelected = (type == AimPath);
-                            if (ImGui.Selectable(type.ToString(), isSelected))
+                            string displayName = string.Concat(type.ToString().Select((x, i) => i > 0 && char.IsUpper(x) ? " " + x : x.ToString())); // just adds a space before capitals except for the first
+                            if (ImGui.Selectable(displayName, isSelected))
                             {
                                 mainConfig.Data.AimMovementType = type;
                             }
@@ -224,14 +227,14 @@ namespace Spectrum
                 if (ImGuiExtensions.BeginPane("Triggerbot"))
                 {
                     bool triggerBot = mainConfig.Data.TriggerBot;
-                    if (ImGui.Checkbox("Enabled", ref triggerBot))
+                    if (ImGui.Checkbox(" Enabled", ref triggerBot))
                     {
                         mainConfig.Data.TriggerBot = triggerBot;
                     }
-                    ImGui.SameLine(ImGui.GetContentRegionAvail().X - ImGui.CalcTextSize(mainConfig.Data.TriggerKey.ToString()).X);
+                    ImGui.SameLine(ImGui.GetContentRegionAvail().X - ImGui.CalcTextSize(_waitingForKeybind.GetValueOrDefault("Trigger Key") ? "Listening..." : mainConfig.Data.TriggerKey.ToString()).X);
                     if (!_waitingForKeybind.GetValueOrDefault("Trigger Key", false))
                     {
-                        if (ImGui.Button($"{mainConfig.Data.TriggerKey.ToString()}###TriggerKeybind"))
+                        if (ImGui.Button($"{mainConfig.Data.TriggerKey}###TriggerKeybind"))
                         {
                             _waitingForKeybind["Trigger Key"] = true;
                             _pendingKeybind["Trigger Key"] = Keys.None;
@@ -242,7 +245,7 @@ namespace Spectrum
                             });
                         }
                     }
-                    else if (triggerBot)
+                    else
                     {
                         ImGui.Button("Listening... ###TriggerListening");
                         if (_pendingKeybind.GetValueOrDefault("Trigger Key", Keys.None) != Keys.None)
@@ -272,6 +275,21 @@ namespace Spectrum
                         {
                             mainConfig.Data.TriggerDuration = triggerDuration;
                         }
+
+                        bool DrawTriggerRadius = mainConfig.Data.DrawTriggerRadius;
+                        if (ImGui.Checkbox("##Draw Trigger Radius", ref DrawTriggerRadius))
+                        {
+                            mainConfig.Data.DrawTriggerRadius = DrawTriggerRadius;
+                        }
+                        ImGui.SameLine();
+                        ImGui.TextUnformatted("Draw Trigger Radius");
+                        ImGui.SameLine(ImGui.GetContentRegionAvail().X - 12);
+                        Vector4 RadiusColor = mainConfig.Data.TriggerRadiusColor;
+                        if (ImGui.ColorEdit4("Trigger Color", ref RadiusColor, ImGuiColorEditFlags.NoInputs | ImGuiColorEditFlags.NoLabel))
+                        {
+                            mainConfig.Data.DetectionColor = RadiusColor;
+                        }
+
                     }
                     ImGuiExtensions.EndPane();
                 }
@@ -283,12 +301,14 @@ namespace Spectrum
 
             if (ImGui.BeginTabItem("Detection"))
             {
-                ImGuiExtensions.BeginPaneGroup("Detection Panes", 1, 12f, new Vector2(12, 10), ImGuiChildFlags.AlwaysUseWindowPadding, ImGuiWindowFlags.None, 0f);
+                ImGuiExtensions.BeginPaneGroup("Detection Panes", 2, 12f, new Vector2(12, 10), ImGuiChildFlags.AlwaysUseWindowPadding, ImGuiWindowFlags.None, 0f);
 
                 if (ImGuiExtensions.BeginPane("Detection Settings"))
                 {
+                    ImGui.TextUnformatted("Image Width");
+                    ImGui.SetNextItemWidth(-1);
                     int ImageWidth = mainConfig.Data.ImageWidth;
-                    if (ImGui.InputInt("Image Width", ref ImageWidth, 1, screenSize.width))
+                    if (ImGui.InputInt("##Image Width", ref ImageWidth, 1, screenSize.width))
                     {
                         if (ImageWidth < 1)
                             ImageWidth = 1;
@@ -297,8 +317,10 @@ namespace Spectrum
                         mainConfig.Data.ImageWidth = ImageWidth;
                     }
 
+                    ImGui.TextUnformatted("Image Height");
+                    ImGui.SetNextItemWidth(-1);
                     int ImageHeight = mainConfig.Data.ImageHeight;
-                    if (ImGui.InputInt("Image Height", ref ImageHeight, 1, screenSize.height))
+                    if (ImGui.InputInt("##Image Height", ref ImageHeight, 1, screenSize.height))
                     {
                         if (ImageHeight < 1)
                             ImageHeight = 1;
@@ -307,79 +329,96 @@ namespace Spectrum
                         mainConfig.Data.ImageHeight = ImageHeight;
                     }
 
-                    Scalar UpperHSV = mainConfig.Data.UpperHSV;
-                    Vector3 UpperHSVVec3 = new Vector3((float)UpperHSV.Val0, (float)UpperHSV.Val1, (float)UpperHSV.Val2);
-                    if (ImGui.InputFloat3("Upper HSV", ref UpperHSVVec3, "%.0f", ImGuiInputTextFlags.CharsDecimal))
+                    ImGui.SetNextItemWidth(-1);
+                    Scalar upperHSV = mainConfig.Data.UpperHSV;
+                    if (ImGuiExtensions.ColorEditHSV3("Upper HSV", ref upperHSV))
                     {
-                        mainConfig.Data.UpperHSV = new Scalar(UpperHSVVec3.X, UpperHSVVec3.Y, UpperHSVVec3.Z);
+                        mainConfig.Data.UpperHSV = upperHSV;
+                    }
+                    Scalar lowerHSV = mainConfig.Data.LowerHSV;
+                    if (ImGuiExtensions.ColorEditHSV3("Lower HSV", ref lowerHSV))
+                    {
+                        mainConfig.Data.LowerHSV = lowerHSV;
                     }
 
-
-                    Scalar LowerHSV = mainConfig.Data.LowerHSV;
-                    Vector3 LowerHSVVec3 = new Vector3((float)LowerHSV.Val0, (float)LowerHSV.Val1, (float)LowerHSV.Val2);
-                    if (ImGui.InputFloat3("Lower HSV", ref LowerHSVVec3, "%.0f", ImGuiInputTextFlags.CharsDecimal))
-                    {
-                        mainConfig.Data.LowerHSV = new Scalar(LowerHSVVec3.X, LowerHSVVec3.Y, LowerHSVVec3.Z);
-                    }
-
-                    List<ColorInfo> colors = colorConfig.Data.Colors;
-                    if (colors.Count != 0)
-                    {
-                        if (ImGui.BeginCombo("Colors", mainConfig.Data.SelectedColor))
-                        {
-                            foreach (ColorInfo color in colors)
-                            {
-                                bool isSelected = (color.Name == mainConfig.Data.SelectedColor);
-                                if (ImGui.Selectable(color.Name, isSelected))
-                                {
-                                    mainConfig.Data.SelectedColor = color.Name;
-                                    mainConfig.Data.UpperHSV = color.Upper;
-                                    mainConfig.Data.LowerHSV = color.Lower;
-                                    ColorName = color.Name;
-                                }
-                                if (isSelected)
-                                {
-                                    ImGui.SetItemDefaultFocus();
-                                }
-                            }
-                            ImGui.EndCombo();
-                        }
-                    }
-
-                    ImGui.InputText("##ColorNameInput", ref ColorName, 32);
-                    ImGui.SameLine();
-                    if (ImGui.Button("Delete Color"))
-                    {
-                        if (colors.Any(c => c.Name.Equals(mainConfig.Data.SelectedColor, StringComparison.OrdinalIgnoreCase)))
-                        {
-                            colors.RemoveAll(c => c.Name.Equals(mainConfig.Data.SelectedColor, StringComparison.OrdinalIgnoreCase));
-                            colorConfig.SaveConfig();
-                            mainConfig.Data.SelectedColor = "Arsenal [Magenta]";
-                            mainConfig.Data.UpperHSV = new Scalar(150, 255, 229);
-                            mainConfig.Data.LowerHSV = new Scalar(150, 255, 229);
-                        }
-                        else
-                        {
-                            LogManager.Log($"Color '{mainConfig.Data.SelectedColor}' does not exist.", LogManager.LogLevel.Warning);
-                        }
-                    }
-                    ImGui.SameLine();
-                    if (ImGui.Button("Save Color"))
-                    {
-                        var color = new ColorInfo(ColorName, mainConfig.Data.UpperHSV, mainConfig.Data.LowerHSV);
-                        if (!string.IsNullOrEmpty(ColorName))
-                        {
-                            colors.Add(color);
-                            colorConfig.SaveConfig();
-                            mainConfig.Data.SelectedColor = ColorName;
-                        }
-                        else
-                        {
-                            LogManager.Log($"Colorname is empty.", LogManager.LogLevel.Warning);
-                        }
-                    }
+                    ImGuiExtensions.EndPane();
                 }
-                ImGuiExtensions.EndPane();
+
+                if (ImGuiExtensions.BeginPane("Detection Configs"))
+                {
+                    List<ColorInfo> colors = colorConfig.Data.Colors;
+                    ImGui.PushStyleColor(ImGuiCol.ChildBg, new Vector4(0.110f, 0.110f, 0.125f, 1.000f));
+                    ImGui.BeginChild("##DetectionConfigsChild", new Vector2(0, ImGui.GetContentRegionAvail().Y / 2), ImGuiChildFlags.None);
+                    ImGui.Dummy(new Vector2(0, 4));
+                    foreach (var color in colors)
+                    {
+                        if (ImGui.Selectable("  " + color.Name, selectedColor == color))
+                        {
+                            selectedColor = color;
+                            ColorName = color.Name;
+                            mainConfig.Data.SelectedColor = selectedColor.Name;
+                        }
+                    }
+                    ImGui.EndChild();
+                    ImGui.PopStyleColor();
+
+                    ImGui.SetNextItemWidth(-1);
+                    ImGui.InputTextWithHint("##ColorName", "Color Name", ref ColorName, 100);
+
+                    Vector2 size = new Vector2((ImGui.GetContentRegionAvail().X / 3) - 5.7f, 22);
+                    if (ImGui.Button("Load Color", size))
+                    {
+                        if (selectedColor != null)
+                        {
+                            mainConfig.Data.SelectedColor = selectedColor.Name;
+                            mainConfig.Data.UpperHSV = selectedColor.Upper;
+                            mainConfig.Data.LowerHSV = selectedColor.Lower;
+                            ColorName = selectedColor.Name;
+                        }
+                    }
+
+                    ImGui.SameLine();
+                    if (ImGui.Button("Save Color", size))
+                    {
+                        if (colors.Find(c => c.Name.Equals(ColorName, StringComparison.OrdinalIgnoreCase)) is ColorInfo existingColor)
+                        {
+                            existingColor.Upper = mainConfig.Data.UpperHSV;
+                            existingColor.Lower = mainConfig.Data.LowerHSV;
+                            selectedColor = existingColor;
+                        }
+                        else
+                        {
+                            colors.Add(new ColorInfo(ColorName, mainConfig.Data.UpperHSV, mainConfig.Data.LowerHSV));
+                            colorConfig.SaveConfig();
+                            selectedColor = colors.Find(c => c.Name.Equals(ColorName, StringComparison.OrdinalIgnoreCase));
+                        }
+                    }
+                    ImGui.SameLine();
+                    if (ImGui.Button("Delete Color", size))
+                    {
+                        if (selectedColor != null)
+                        {
+                            int currentIndex = colors.IndexOf(selectedColor);
+                            colors.RemoveAll(c => c.Name.Equals(selectedColor.Name, StringComparison.OrdinalIgnoreCase));
+                            colorConfig.SaveConfig();
+                            if (colors.Count > 0)
+                            {
+                                int nextIndex = Math.Max(0, currentIndex - 1);
+                                selectedColor = colors[currentIndex - 1];
+                                mainConfig.Data.SelectedColor = selectedColor.Name;
+                                mainConfig.Data.UpperHSV = selectedColor.Upper;
+                                mainConfig.Data.LowerHSV = selectedColor.Lower;
+                                ColorName = selectedColor.Name;
+                            }
+                            else
+                            {
+                                selectedColor = null;
+                            }
+                        }
+                    }
+                    ImGuiExtensions.EndPane();
+                }
+
 
                 ImGui.EndTabItem();
             }
@@ -405,6 +444,7 @@ namespace Spectrum
                                 {
                                     case MovementMethod.Makcu:
                                         {
+                                            ArduinoMain.Close();
                                             var ok = MakcuMain.Load().GetAwaiter().GetResult();
                                             if (!ok)
                                             {
@@ -414,7 +454,20 @@ namespace Spectrum
                                             }
                                             break;
                                         }
+                                    case MovementMethod.Arduino:
+                                        {
+                                            MakcuMain.Unload();
+                                            var ok = ArduinoMain.Load();
+                                            if (!ok)
+                                            {
+                                                LogManager.Log("Arduino failed to initialize. Falling back to MouseEvent.", LogManager.LogLevel.Warning);
+                                                mainConfig.Data.MovementMethod = MovementMethod.MouseEvent;
+                                                ArduinoMain.Close();
+                                            }
+                                            break;
+                                        }
                                     default:
+                                        ArduinoMain.Close();
                                         MakcuMain.Unload();
                                         break;
                                 }
@@ -564,7 +617,8 @@ namespace Spectrum
                     float scrollMaxY = ImGui.GetScrollMaxY();
                     bool isAtBottom = (scrollY >= scrollMaxY - 1.0f);
 
-                    var _LogEntries = LogManager.LogEntries.ToArray();
+                    var _LogEntries = LogManager.LogEntries;
+                    _LogEntries = [.. _LogEntries];
                     foreach (var log in _LogEntries)
                     {
                         ImGui.Text(log.ToString());
@@ -609,6 +663,7 @@ namespace Spectrum
 
             ImGui.End();
         }
+
 
         protected void RenderOverlay()
         {
@@ -786,6 +841,196 @@ namespace Spectrum
     public static class ImGuiExtensions
     {
         private static readonly Dictionary<string, string> _sliderEditBuffers = new();
+        public static bool ColorEditHSV3(string label, ref Scalar hsv)
+        {
+            ImGui.PushID(label);
+
+            int h = (int)Math.Clamp(Math.Round(hsv.Val0), 0, 179);
+            int s = (int)Math.Clamp(Math.Round(hsv.Val1), 0, 255);
+            int v = (int)Math.Clamp(Math.Round(hsv.Val2), 0, 255);
+
+            bool changed = false;
+            bool inputChanged = false;
+
+            ImGui.TextUnformatted(label);
+
+            var style = ImGui.GetStyle();
+            float avail = ImGui.GetContentRegionAvail().X;
+            float previewWidth = 21.0f;
+            float totalSpacing = style.ItemSpacing.X * 3;
+            float partWidth = Math.Max(24.0f, (avail - totalSpacing - previewWidth) / 3.0f);
+
+            ImGui.PushItemWidth(partWidth);
+            if (ImGui.InputInt($"##{label}H", ref h, 0, 179))
+                inputChanged = true;
+            ImGui.PopItemWidth();
+
+            ImGui.SameLine();
+            ImGui.PushItemWidth(partWidth);
+            if (ImGui.InputInt($"##{label}S", ref s, 0, 255))
+                inputChanged = true;
+            ImGui.PopItemWidth();
+
+            ImGui.SameLine();
+            ImGui.PushItemWidth(partWidth);
+            if (ImGui.InputInt($"##{label}V", ref v, 0, 255))
+                inputChanged = true;
+            ImGui.PopItemWidth();
+
+            if (inputChanged)
+            {
+                hsv = new Scalar(h, s, v);
+                changed = true;
+            }
+
+            Vector3 rgbColor = OpenCvHsvToRgb(hsv);
+
+            ImGui.SameLine();
+            Vector2 btnSize = new Vector2(previewWidth, previewWidth);
+            Vector4 previewCol4 = new Vector4(rgbColor.X, rgbColor.Y, rgbColor.Z, 1.0f);
+            string previewBtnId = $"##ColorPreview_{label}";
+            if (ImGui.ColorButton(previewBtnId, previewCol4, ImGuiColorEditFlags.NoInputs, btnSize))
+            {
+                ImGui.OpenPopup($"##ColorPicker_{label}");
+            }
+            if (ImGui.BeginPopup($"##ColorPicker_{label}"))
+            {
+                Vector3 picker = rgbColor;
+                if (ImGui.ColorPicker3($"##ColorPickerPicker_{label}", ref picker))
+                {
+                    rgbColor = picker;
+                    Scalar newHsv = RgbToOpenCvHsv(rgbColor);
+                    hsv = newHsv;
+                    changed = true;
+                }
+                ImGui.EndPopup();
+            }
+
+            ImGui.PopID();
+
+            return changed;
+        }
+
+        private static Vector3 OpenCvHsvToRgb(Scalar hsv)
+        {
+            double h = Math.Clamp(hsv.Val0, 0.0, 179.0);
+            double s = Math.Clamp(hsv.Val1, 0.0, 255.0);
+            double v = Math.Clamp(hsv.Val2, 0.0, 255.0);
+
+            double hueDeg = (h / 179.0) * 360.0;
+            if (hueDeg >= 360.0)
+                hueDeg -= 360.0;
+
+            double saturation = s / 255.0;
+            double value = v / 255.0;
+
+            if (saturation <= double.Epsilon)
+            {
+                return new Vector3((float)value, (float)value, (float)value);
+            }
+
+            double c = value * saturation;
+            double huePrime = hueDeg / 60.0;
+            double x = c * (1 - Math.Abs(huePrime % 2 - 1));
+            double m = value - c;
+
+            double r1 = 0, g1 = 0, b1 = 0;
+
+            int region = (int)Math.Floor(huePrime);
+            if (region >= 6)
+                region = 0;
+
+            switch (region)
+            {
+                case 0:
+                    r1 = c;
+                    g1 = x;
+                    b1 = 0;
+                    break;
+                case 1:
+                    r1 = x;
+                    g1 = c;
+                    b1 = 0;
+                    break;
+                case 2:
+                    r1 = 0;
+                    g1 = c;
+                    b1 = x;
+                    break;
+                case 3:
+                    r1 = 0;
+                    g1 = x;
+                    b1 = c;
+                    break;
+                case 4:
+                    r1 = x;
+                    g1 = 0;
+                    b1 = c;
+                    break;
+                case 5:
+                default:
+                    r1 = c;
+                    g1 = 0;
+                    b1 = x;
+                    break;
+            }
+
+            double r = r1 + m;
+            double g = g1 + m;
+            double b = b1 + m;
+
+            return new Vector3(
+                (float)Math.Clamp(r, 0.0, 1.0),
+                (float)Math.Clamp(g, 0.0, 1.0),
+                (float)Math.Clamp(b, 0.0, 1.0)
+            );
+        }
+
+        private static Scalar RgbToOpenCvHsv(Vector3 rgb)
+        {
+            double r = Math.Clamp(rgb.X, 0f, 1f);
+            double g = Math.Clamp(rgb.Y, 0f, 1f);
+            double b = Math.Clamp(rgb.Z, 0f, 1f);
+
+            double max = Math.Max(r, Math.Max(g, b));
+            double min = Math.Min(r, Math.Min(g, b));
+            double delta = max - min;
+
+            double hueDeg;
+            if (delta <= double.Epsilon)
+            {
+                hueDeg = 0;
+            }
+            else if (Math.Abs(max - r) < double.Epsilon)
+            {
+                hueDeg = 60.0 * (((g - b) / delta) % 6.0);
+            }
+            else if (Math.Abs(max - g) < double.Epsilon)
+            {
+                hueDeg = 60.0 * (((b - r) / delta) + 2.0);
+            }
+            else
+            {
+                hueDeg = 60.0 * (((r - g) / delta) + 4.0);
+            }
+
+            if (hueDeg < 0)
+                hueDeg += 360.0;
+
+            double saturation = max <= double.Epsilon ? 0.0 : (delta / max);
+            double value = max;
+
+            int h = (int)Math.Round((hueDeg / 360.0) * 179.0);
+            int s = (int)Math.Round(saturation * 255.0);
+            int v = (int)Math.Round(value * 255.0);
+
+            h = Math.Clamp(h, 0, 179);
+            s = Math.Clamp(s, 0, 255);
+            v = Math.Clamp(v, 0, 255);
+
+            return new Scalar(h, s, v);
+        }
+
         public static bool SliderFill(string label, ref float value, float min, float max, string format = "%.2f")
         {
             bool changed = false;

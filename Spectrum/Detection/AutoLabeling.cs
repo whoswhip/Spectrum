@@ -114,8 +114,6 @@ namespace Spectrum.Detection
 
         public static void AddToQueue(Mat mat, Rectangle bounds, OpenCvSharp.Point[][] filteredContours)
         {
-
-            LogManager.Log($"Adding {filteredContours.Length} contours to labeling queue.", LogLevel.Debug);
             if (!mainConfig.Data.AutoLabel || filteredContours.Length == 0)
                 return;
 
