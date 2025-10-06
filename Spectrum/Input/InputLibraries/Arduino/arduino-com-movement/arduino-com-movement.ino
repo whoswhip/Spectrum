@@ -24,6 +24,10 @@ void loop() {
             state = WAIT_MOVE_X;
             break;
 
+          case 0x02: 
+            Serial.write(0xAA); // ping
+            break;
+
           case 0x03: // left down
             Mouse.press(MOUSE_LEFT);
             break;
