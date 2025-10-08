@@ -150,8 +150,6 @@ namespace Spectrum.Input
             int y = (int)Math.Round(EmaSmoothing(previous.Y, current.Y, smoothingFactor));
             return new Point(x, y);
         }
-
-
         private static int[] GeneratePermutation()
         {
             int[] perm = new int[256];

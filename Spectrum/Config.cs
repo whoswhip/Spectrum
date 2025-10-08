@@ -7,70 +7,281 @@ namespace Spectrum
 {
     public class ConfigManager<T> where T : new()
     {
-        private readonly string _fileName;
-        private FileSystemWatcher? _watcher;
+        private readonly string _defaultFilename;
+        private readonly string _configDirectory;
+        private FileSystemWatcher? _fileWatcher;
+        private FileSystemWatcher? _directoryWatcher;
         private T _data;
+        private string _currentConfigName;
+        private List<string> _availableConfigs;
 
         public T Data => _data;
+        public string CurrentConfigName => _currentConfigName;
+        public IReadOnlyList<string> AvailableConfigs => _availableConfigs.AsReadOnly();
 
-        public ConfigManager(string fileName)
+        public ConfigManager(string fileName, string configDirectory = "configs")
         {
-            _fileName = fileName;
+            _defaultFilename = fileName;
+            _configDirectory = configDirectory;
+            _currentConfigName = Path.GetFileNameWithoutExtension(fileName);
             _data = new T();
+            _availableConfigs = new List<string>();
+            
+            if (!Directory.Exists(_configDirectory))
+            {
+                Directory.CreateDirectory(_configDirectory);
+            }
+            
+            UpdateAvailableConfigs();
+            StartDirectoryWatcher();
             LoadConfig();
         }
 
-        public void LoadConfig(bool silent = false)
+        public void LoadConfig(bool silent = false, string filename = "")
         {
-            if (File.Exists(_fileName))
+            if (string.IsNullOrEmpty(filename))
+                filename = _defaultFilename;
+                
+            try
             {
-                try
+                if (File.Exists(filename))
                 {
-                    var json = File.ReadAllText(_fileName);
-                    _data = JsonConvert.DeserializeObject<T>(json) ?? new T();
-                    if (!silent) LogManager.Log($"Loaded config {_fileName}.", LogLevel.Info);
+                    try
+                    {
+                        var json = File.ReadAllText(filename);
+                        _data = JsonConvert.DeserializeObject<T>(json) ?? new T();
+                        _currentConfigName = Path.GetFileNameWithoutExtension(filename);
+                        if (!silent) LogManager.Log($"Loaded config {filename}.", LogLevel.Info);
+                    }
+                    catch
+                    {
+                        LogManager.Log($"Failed to parse {filename}, using default values.", LogLevel.Error);
+                        _data = new T();
+                        SaveConfig();
+                    }
                 }
-                catch
+                else
                 {
-                    LogManager.Log($"Failed to parse {_fileName}, using default values.", LogLevel.Error);
+                    LogManager.Log($"{filename} not found, creating a new one with default values.", LogLevel.Error);
                     _data = new T();
                     SaveConfig();
                 }
             }
-            else
+            catch (Exception ex)
             {
-                LogManager.Log($"{_fileName} not found, creating a new one with default values.", LogLevel.Error);
+                LogManager.Log($"Error loading config {filename}: {ex.Message}", LogLevel.Error);
                 _data = new T();
-                SaveConfig();
             }
         }
 
-        public void SaveConfig()
+        public void SaveConfig(string filename = "")
         {
-            File.WriteAllText(_fileName, JsonConvert.SerializeObject(_data, Formatting.Indented));
+            if (string.IsNullOrEmpty(filename))
+                filename = _defaultFilename;
+                
+            try
+            {
+                File.WriteAllText(filename, JsonConvert.SerializeObject(_data, Formatting.Indented));
+                _currentConfigName = Path.GetFileNameWithoutExtension(filename);
+                LogManager.Log($"Saved config to {filename}.", LogLevel.Info);
+            }
+            catch (Exception ex)
+            {
+                LogManager.Log($"Error saving config {filename}: {ex.Message}", LogLevel.Error);
+            }
+        }
+
+        public void SaveConfigToDirectory(string configName)
+        {
+            if (string.IsNullOrEmpty(configName))
+            {
+                LogManager.Log("Config name cannot be empty.", LogLevel.Error);
+                return;
+            }
+
+            var filePath = Path.Combine(_configDirectory, $"{configName}.json");
+            SaveConfig(filePath);
+        }
+
+        public bool LoadConfigFromDirectory(string configName)
+        {
+            if (string.IsNullOrEmpty(configName))
+            {
+                LogManager.Log("Config name cannot be empty.", LogLevel.Error);
+                return false;
+            }
+
+            var filePath = Path.Combine(_configDirectory, $"{configName}.json");
+            
+            if (!File.Exists(filePath))
+            {
+                LogManager.Log($"Config {configName} not found in directory.", LogLevel.Error);
+                return false;
+            }
+
+            LoadConfig(false, filePath);
+            return true;
+        }
+
+        private void UpdateAvailableConfigs()
+        {
+            try
+            {
+                if (!Directory.Exists(_configDirectory))
+                {
+                    _availableConfigs.Clear();
+                    return;
+                }
+
+                var configs = Directory.GetFiles(_configDirectory, "*.json")
+                    .Select(Path.GetFileNameWithoutExtension)
+                    .Where(name => !string.IsNullOrEmpty(name))
+                    .Cast<string>()
+                    .ToList();
+
+                _availableConfigs.Clear();
+                _availableConfigs.AddRange(configs);
+            }
+            catch (Exception ex)
+            {
+                LogManager.Log($"Error updating available configs: {ex.Message}", LogLevel.Error);
+            }
+        }
+
+        private void StartDirectoryWatcher()
+        {
+            try
+            {
+                if (_directoryWatcher != null) return;
+
+                _directoryWatcher = new FileSystemWatcher(_configDirectory, "*.json")
+                {
+                    NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite
+                };
+
+                _directoryWatcher.Created += OnDirectoryChanged;
+                _directoryWatcher.Deleted += OnDirectoryChanged;
+                _directoryWatcher.Renamed += OnDirectoryChanged;
+                _directoryWatcher.Changed += OnDirectoryChanged;
+                _directoryWatcher.EnableRaisingEvents = true;
+
+                LogManager.Log($"Directory watcher started for {_configDirectory}.", LogLevel.Info);
+            }
+            catch (Exception ex)
+            {
+                LogManager.Log($"Error starting directory watcher: {ex.Message}", LogLevel.Error);
+            }
+        }
+
+        private void StopDirectoryWatcher()
+        {
+            if (_directoryWatcher == null) return;
+
+            _directoryWatcher.EnableRaisingEvents = false;
+            _directoryWatcher.Created -= OnDirectoryChanged;
+            _directoryWatcher.Deleted -= OnDirectoryChanged;
+            _directoryWatcher.Renamed -= OnDirectoryChanged;
+            _directoryWatcher.Changed -= OnDirectoryChanged;
+            _directoryWatcher.Dispose();
+            _directoryWatcher = null;
+
+            LogManager.Log($"Directory watcher stopped for {_configDirectory}.", LogLevel.Info);
+        }
+
+        private void OnDirectoryChanged(object sender, FileSystemEventArgs e)
+        {
+            Thread.Sleep(50);
+            UpdateAvailableConfigs();
+        }
+
+        public bool DeleteConfigFromDirectory(string configName)
+        {
+            if (string.IsNullOrEmpty(configName))
+            {
+                LogManager.Log("Config name cannot be empty.", LogLevel.Error);
+                return false;
+            }
+
+            var filePath = Path.Combine(_configDirectory, $"{configName}.json");
+            
+            if (!File.Exists(filePath))
+            {
+                LogManager.Log($"Config {configName} not found.", LogLevel.Error);
+                return false;
+            }
+
+            try
+            {
+                File.Delete(filePath);
+                LogManager.Log($"Deleted config {configName}.", LogLevel.Info);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                LogManager.Log($"Error deleting config {configName}: {ex.Message}", LogLevel.Error);
+                return false;
+            }
+        }
+
+        public bool RenameConfigInDirectory(string oldName, string newName)
+        {
+            if (string.IsNullOrEmpty(oldName) || string.IsNullOrEmpty(newName))
+            {
+                LogManager.Log("Config names cannot be empty.", LogLevel.Error);
+                return false;
+            }
+
+            var oldPath = Path.Combine(_configDirectory, $"{oldName}.json");
+            var newPath = Path.Combine(_configDirectory, $"{newName}.json");
+
+            if (!File.Exists(oldPath))
+            {
+                LogManager.Log($"Config {oldName} not found.", LogLevel.Error);
+                return false;
+            }
+
+            if (File.Exists(newPath))
+            {
+                LogManager.Log($"Config {newName} already exists.", LogLevel.Error);
+                return false;
+            }
+
+            try
+            {
+                File.Move(oldPath, newPath);
+                if (_currentConfigName == oldName)
+                    _currentConfigName = newName;
+                LogManager.Log($"Renamed config from {oldName} to {newName}.", LogLevel.Info);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                LogManager.Log($"Error renaming config: {ex.Message}", LogLevel.Error);
+                return false;
+            }
         }
 
         public void StartFileWatcher()
         {
-            if (_watcher != null) return;
+            if (_fileWatcher != null) return;
 
-            _watcher = new FileSystemWatcher(Directory.GetCurrentDirectory(), _fileName)
+            _fileWatcher = new FileSystemWatcher(Directory.GetCurrentDirectory(), _defaultFilename)
             {
                 NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.Size
             };
-            _watcher.Changed += OnConfigFileChanged;
-            _watcher.EnableRaisingEvents = true;
-            LogManager.Log($"File watcher started for {_fileName}.", LogLevel.Info);
+            _fileWatcher.Changed += OnConfigFileChanged;
+            _fileWatcher.EnableRaisingEvents = true;
+            LogManager.Log($"File watcher started for {_defaultFilename}.", LogLevel.Info);
         }
 
         public void StopFileWatcher()
         {
-            if (_watcher == null) return;
-            _watcher.EnableRaisingEvents = false;
-            _watcher.Changed -= OnConfigFileChanged;
-            _watcher.Dispose();
-            _watcher = null;
-            LogManager.Log($"File watcher stopped for {_fileName}.", LogLevel.Info);
+            if (_fileWatcher == null) return;
+            _fileWatcher.EnableRaisingEvents = false;
+            _fileWatcher.Changed -= OnConfigFileChanged;
+            _fileWatcher.Dispose();
+            _fileWatcher = null;
+            LogManager.Log($"File watcher stopped for {_defaultFilename}.", LogLevel.Info);
         }
 
         private void OnConfigFileChanged(object sender, FileSystemEventArgs e)
@@ -79,15 +290,22 @@ namespace Spectrum
             try
             {
                 LoadConfig(true);
-                LogManager.Log($"Configuration reloaded successfully for {_fileName}.", LogLevel.Info);
+                LogManager.Log($"Configuration reloaded successfully for {_defaultFilename}.", LogLevel.Info);
             }
             catch (Exception ex)
             {
-                LogManager.Log($"Failed to reload configuration for {_fileName}: {ex.Message}", LogLevel.Error);
+                LogManager.Log($"Failed to reload configuration for {_defaultFilename}: {ex.Message}", LogLevel.Error);
             }
+        }
+
+        public void Dispose()
+        {
+            StopFileWatcher();
+            StopDirectoryWatcher();
         }
     }
 
+    #region Enums
     public enum MovementType
     {
         Linear,
@@ -112,19 +330,27 @@ namespace Spectrum
         GDI,
         DirectX
     }
+    #endregion
     public class ConfigData
     {
 
-        // Image settings
+        #region Image Settings
         public int ImageWidth { get; set; } = 640;
         public int ImageHeight { get; set; } = 640;
+        public int Threshold { get; set; } = 200;
         public CaptureMethod CaptureMethod { get; set; } = CaptureMethod.DirectX;
+        #endregion
 
-        // Offset settings
+        #region Offset Settings
         public double YOffsetPercent { get; set; } = 0.8;
         public double XOffsetPercent { get; set; } = 0.5;
+        public int YOffsetPixels { get; set; } = 100;
+        public int XOffsetPixels { get; set; } = 100;
+        public bool XPixelOffset { get; set; } = false;
+        public bool YPixelOffset { get; set; } = false;
+        #endregion
 
-        // Aim settings
+        #region Aim Settings
         public bool EnableAim { get; set; } = true;
         public bool ClosestToMouse { get; set; } = true;
         public Keys Keybind { get; set; } = Keys.XButton2;
@@ -134,37 +360,47 @@ namespace Spectrum
         public double EmaSmootheningFactor { get; set; } = 0.1;
 
         public MovementMethod MovementMethod { get; set; } = MovementMethod.MouseEvent;
+        #endregion
 
-        // Triggerbot settings
+        #region Trigger Settings
         public bool TriggerBot { get; set; } = false;
         public Keys TriggerKey { get; set; } = Keys.XButton2;
         public int TriggerDelay { get; set; } = 50; // milliseconds
-        public int TriggerRadius { get; set; } = 15; // pixels
+        public int TriggerFov { get; set; } = 15; // pixels
         public int TriggerDuration { get; set; } = 100; // milliseconds
-        public bool DrawTriggerRadius { get; set; } = false;
+        public bool DrawTriggerFov { get; set; } = false;
         public Vector4 TriggerRadiusColor { get; set; } = new Vector4(1.0f, 0.0f, 0.0f, 1.0f);
+        #endregion
 
-        // Display settings
+        #region Display Settings
         public bool DrawDetections { get; set; } = true;
         public Vector4 DetectionColor { get; set; } = new Vector4(0.0f, 1.0f, 0.0f, 1.0f);
+        public bool HighlightTarget { get; set; } = false;
+        public Vector4 TargetColor { get; set; } = new Vector4(1.0f, 0.0f, 0.0f, 1.0f);
         public bool ShowMenu { get; set; } = true;
         public Keys MenuKey { get; set; } = Keys.Insert;
         public bool DrawFOV { get; set; } = false;
         public FovType FOVType { get; set; } = FovType.Rectangle;
         public Vector4 FOVColor { get; set; } = new Vector4(0.0f, 1.0f, 0.0f, 1.0f);
+        public bool DrawAimPoint { get; set; } = true;
+        public Vector4 AimPointColor { get; set; } = new Vector4(1.0f, 0.0f, 0.0f, 1.0f);
+        #endregion
 
-        // Data collection settings
+        #region Data Collection Settings
         public bool CollectData { get; set; } = false;
         public bool AutoLabel { get; set; } = false;
         public int BackgroundImageInterval { get; set; } = 10;
+        #endregion
 
-        // Color settings
+        #region Color Settings
         public Scalar UpperHSV { get; set; } = new Scalar(179, 255, 255);
         public Scalar LowerHSV { get; set; } = new Scalar(150, 255, 255);
         public string SelectedColor { get; set; } = "Arsenal [Magenta]";
+        #endregion
 
-        // Misc
+        #region Misc
         public bool DebugMode { get; set; } = false;
+        #endregion
     }
     public class ColorData
     {

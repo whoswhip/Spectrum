@@ -9,9 +9,8 @@ namespace Spectrum
         static Renderer? renderer = null;
         public static ConfigManager<ConfigData> mainConfig = new ConfigManager<ConfigData>("bin\\configs\\config.json");
         public static ConfigManager<ColorData> colorConfig = new ConfigManager<ColorData>("bin\\configs\\colors.json");
-        public static long iterationCount = 0;
-        public static long totalTime = 0;
         private static DetectionManager? detectionManager;
+        public static (int fps, double avgProcessTime) statistics = (0, 0);
         public static CaptureManager SharedCaptureManager { get; } = new CaptureManager();
 
 

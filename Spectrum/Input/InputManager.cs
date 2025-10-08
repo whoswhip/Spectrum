@@ -124,7 +124,7 @@ namespace Spectrum.Input
             if (mainConfig.Data.TriggerDelay > 0)
                 await Task.Delay(mainConfig.Data.TriggerDelay);
 
-            int radius = mainConfig.Data.TriggerRadius;
+            int radius = mainConfig.Data.TriggerFov;
 
             if (Math.Abs(currentPosition.X - lastDetection.X) < radius && Math.Abs(currentPosition.Y - lastDetection.Y) < radius)
             {
@@ -181,9 +181,9 @@ namespace Spectrum.Input
         private static extern short GetAsyncKeyState(int vKey);
 
         private static readonly Keys[] MouseKeys =
-        {
+        [
             Keys.LButton, Keys.RButton, Keys.MButton, Keys.XButton1, Keys.XButton2
-        };
+        ];
 
         public static Task<Keys> ListenForNextKeyOrMouseAsync(CancellationToken? cancellationToken = null)
         {

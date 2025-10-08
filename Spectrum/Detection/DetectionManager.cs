@@ -1,4 +1,5 @@
-﻿using OpenCvSharp;
+﻿using ImGuiNET;
+using OpenCvSharp;
 using Spectrum.Input;
 using System.Diagnostics;
 
@@ -6,16 +7,18 @@ namespace Spectrum.Detection
 {
     class DetectionManager
     {
-        private long iterationCount = 0;
-        private long totalTime = 0;
-        private Stopwatch stopwatch = new Stopwatch();
+        private readonly Stopwatch stopwatch = new Stopwatch();
         private Rectangle bounds = new Rectangle(0, 0, 0, 0);
-        private (int Width, int Height) screenSize = SystemHelper.GetPrimaryScreenSize();
-        private ConfigManager<ConfigData> mainConfig = Program.mainConfig;
-        private Renderer? renderer;
-        private Thread? _detectionThread;
+        private readonly (int Width, int Height) screenSize = SystemHelper.GetPrimaryScreenSize();
+        private readonly int minArea;
+        private readonly ConfigManager<ConfigData> mainConfig = Program.mainConfig;
+        private readonly Renderer? renderer;
+        private readonly Thread? _detectionThread;
         private DateTime lastMenuToggle = DateTime.MinValue;
         private readonly CaptureManager _captureManager;
+        private readonly Queue<double> processTimes = new Queue<double>(100);
+        private DateTime lastFpsUpdate = DateTime.Now;
+        private int frameCount = 0;
 
         public DetectionManager(Renderer renderer)
         {
@@ -27,6 +30,7 @@ namespace Spectrum.Detection
                 Name = "Spectrum Detection Thread",
                 Priority = ThreadPriority.AboveNormal
             };
+            minArea = (100 / 1440) * screenSize.Height;
             _detectionThread.Start();
         }
 
@@ -38,15 +42,20 @@ namespace Spectrum.Detection
                 {
                     if (InputManager.IsKeyOrMouseDown(mainConfig.Data.Keybind) || InputManager.IsKeyOrMouseDown(mainConfig.Data.TriggerKey))
                     {
-                        stopwatch.Restart();
+                        var config = mainConfig.Data;
+                        if (config.DebugMode)
+                            stopwatch.Restart();
+
+                        renderer?.ClearDetectionDrawCommands();
+
                         bounds = new Rectangle(
-                            (screenSize.Width - mainConfig.Data.ImageWidth) / 2,
-                            (screenSize.Height - mainConfig.Data.ImageHeight) / 2,
-                            mainConfig.Data.ImageWidth,
-                            mainConfig.Data.ImageHeight
+                            (screenSize.Width - config.ImageWidth) / 2,
+                            (screenSize.Height - config.ImageHeight) / 2,
+                            config.ImageWidth,
+                            config.ImageHeight
                         );
                         var screenshot = null as Bitmap;
-                        if (mainConfig.Data.CaptureMethod == CaptureMethod.DirectX && _captureManager.IsDirectXAvailable)
+                        if (config.CaptureMethod == CaptureMethod.DirectX && _captureManager.IsDirectXAvailable)
                             screenshot = _captureManager.CaptureScreenshotDirectX(bounds);
                         else
                         {
@@ -61,135 +70,165 @@ namespace Spectrum.Detection
                             Thread.Sleep(2);
                             continue;
                         }
+                        
                         Mat mat = OpenCvSharp.Extensions.BitmapConverter.ToMat(screenshot);
-                        Mat drawing = mat.Clone();
+                        screenshot.Dispose();
+                        
+                        Mat? drawing = (config.AutoLabel || config.CollectData) ? mat.Clone() : null;
+                        
                         Cv2.CvtColor(mat, mat, ColorConversionCodes.BGR2HSV);
-                        Cv2.InRange(mat, mainConfig.Data.LowerHSV, mainConfig.Data.UpperHSV, mat);
+                        Cv2.InRange(mat, config.LowerHSV, config.UpperHSV, mat);
                         Cv2.Dilate(mat, mat, null, iterations: 2);
                         Cv2.Threshold(mat, mat, 127, 255, ThresholdTypes.Binary);
 
                         Cv2.FindContours(mat, out var contours, out var hierarchy, RetrievalModes.External, ContourApproximationModes.ApproxSimple);
 
-                        var filteredContours = contours.Where(c => Cv2.ContourArea(c) >= 50).ToArray();
+                        var filteredContours = contours.Where(c => Cv2.ContourArea(c) >= minArea).ToArray();
 
                         var processedContours = MergeOverlappingContours(filteredContours);
 
                         if (processedContours.Length > 0)
                         {
                             int refX = bounds.X + bounds.Width / 2;
-                            int refY = bounds.Y + (int)(bounds.Height * mainConfig.Data.YOffsetPercent);
+                            int refY = bounds.Y + (int)(bounds.Height * config.YOffsetPercent);
 
-                            double minDist = double.MaxValue;
+                            double minDistSquared = double.MaxValue;
                             OpenCvSharp.Point[]? closestContour = null;
-                            int bestMinX = 0, bestMinY = 0, bestMaxX = 0, bestMaxY = 0;
+                            Rect bestRect = default;
+                            
+                            bool shouldDrawDetections = config.DrawDetections && renderer != null;
 
                             foreach (var contour in processedContours)
                             {
-                                int minX = int.MaxValue, minY = int.MaxValue, maxX = int.MinValue, maxY = int.MinValue;
-                                foreach (var point in contour)
-                                {
-                                    if (point.X < minX) minX = point.X;
-                                    if (point.Y < minY) minY = point.Y;
-                                    if (point.X > maxX) maxX = point.X;
-                                    if (point.Y > maxY) maxY = point.Y;
-                                }
-                                int centerX = (minX + maxX) / 2;
-                                int centerY = (minY + maxY) / 2;
+                                var rect = Cv2.BoundingRect(contour);
+
+                                int centerX = rect.X + rect.Width / 2;
+                                int centerY = rect.Y + rect.Height / 2;
 
                                 int absCenterX = centerX + bounds.X;
                                 int absCenterY = centerY + bounds.Y;
-                                double dist = Math.Sqrt(Math.Pow(absCenterX - refX, 2) + Math.Pow(absCenterY - refY, 2));
+                                
+                                double distSquared = (absCenterX - refX) * (absCenterX - refX) + 
+                                                    (absCenterY - refY) * (absCenterY - refY);
 
-                                if (dist < minDist)
+                                if (distSquared < minDistSquared)
                                 {
-                                    minDist = dist;
+                                    minDistSquared = distSquared;
                                     closestContour = contour;
-                                    bestMinX = minX;
-                                    bestMinY = minY;
-                                    bestMaxX = maxX;
-                                    bestMaxY = maxY;
+                                    bestRect = rect;
                                 }
 
-                                if (renderer != null)
+                                if (shouldDrawDetections)
                                 {
-                                    if (mainConfig.Data.DrawDetections)
-                                    {
-                                        var _rect = new Rectangle(
-                                            minX + bounds.X,
-                                            minY + bounds.Y,
-                                            (maxX - minX + 1),
-                                            (maxY - minY + 1)
-                                        );
-                                        renderer.AddRect(_rect, mainConfig.Data.DetectionColor, 1.0f);
-                                    }
+                                    var _rect = new Rectangle(
+                                        rect.X + bounds.X,
+                                        rect.Y + bounds.Y,
+                                        rect.Width,
+                                        rect.Height
+                                    );
+                                    renderer!.AddRect(_rect, config.DetectionColor, 1.0f);
                                 }
-
                             }
 
                             if (closestContour != null)
                             {
-                                int groupX = (int)(bestMinX + (bestMaxX - bestMinX) * (1.0 - mainConfig.Data.XOffsetPercent));
-                                int groupY = (int)(bestMinY + (bestMaxY - bestMinY) * (1.0 - mainConfig.Data.YOffsetPercent));
+
+                                if (shouldDrawDetections && config.HighlightTarget)
+                                {
+                                    var _rect = new Rectangle(
+                                        bestRect.X + bounds.X,
+                                        bestRect.Y + bounds.Y,
+                                        bestRect.Width,
+                                        bestRect.Height
+                                    );
+                                    renderer!.AddRect(_rect, config.TargetColor, 2.0f);
+                                }
+
+                                int groupX;
+                                int groupY;
+                                if (config.XPixelOffset)
+                                    groupX = bestRect.X + config.XOffsetPixels;
+                                else 
+                                    groupX = (int)(bestRect.X + bestRect.Width * config.XOffsetPercent);
+                                if (config.YPixelOffset)
+                                    groupY = bestRect.Y + config.YOffsetPixels;
+                                else
+                                    groupY = (int)(bestRect.Y + bestRect.Height * (1 - config.YOffsetPercent));
+
                                 int targetX = groupX + bounds.X;
                                 int targetY = groupY + bounds.Y;
 
-                                if (mainConfig.Data.AutoLabel)
+                                if (config.DrawAimPoint)
+                                {
+                                    renderer!.AddLine(new System.Numerics.Vector2(targetX - 10, targetY), new System.Numerics.Vector2(targetX + 10, targetY), config.AimPointColor, 2);
+                                    renderer!.AddLine(new System.Numerics.Vector2(targetX, targetY - 10), new System.Numerics.Vector2(targetX, targetY + 10), config.AimPointColor, 2);
+                                    renderer!.AddCircle(new System.Numerics.Vector2(targetX, targetY), 5, config.AimPointColor, 20);
+                                }
+
+                                if (config.AutoLabel && drawing != null)
                                 {
                                     AutoLabeling.AddToQueue(drawing, bounds, processedContours);
                                     AutoLabeling.AddBackgroundImage(drawing, true);
                                 }
-                                if (!mainConfig.Data.AutoLabel && mainConfig.Data.CollectData)
+                                if (!config.AutoLabel && config.CollectData && drawing != null)
                                 {
                                     AutoLabeling.AddBackgroundImage(drawing, false);
                                 }
 
                                 InputManager.SetLastDetection(new System.Drawing.Point(targetX, targetY));
 
-                                if (mainConfig.Data.EnableAim)
+                                if (config.EnableAim)
                                 {
                                     InputManager.MoveMouse();
                                 }
-                                if (mainConfig.Data.TriggerBot)
+                                if (config.TriggerBot)
                                 {
                                     var _ = InputManager.ClickMouse();
                                 }
-                                if (renderer != null && mainConfig.Data.DrawTriggerRadius)
+                                if (renderer != null && config.DrawTriggerFov && config.TriggerBot)
                                 {
-                                    renderer.AddCircle(new System.Numerics.Vector2(targetX, targetY), mainConfig.Data.TriggerRadius, new System.Numerics.Vector4(1.0f, 0.0f, 0.0f, 1.0f), 100);
+                                    renderer.AddCircle(new System.Numerics.Vector2(targetX, targetY), config.TriggerFov, config.TriggerRadiusColor, 100);
                                 }
                             }
-                            if (mainConfig.Data.DebugMode)
-                            {
-                                iterationCount++;
-                                totalTime += stopwatch.ElapsedMilliseconds;
-                            }
                         }
-                        else if (mainConfig.Data.CollectData)
+                        else if (config.CollectData && drawing != null)
                         {
-                            if (mainConfig.Data.CollectData)
-                                AutoLabeling.AddBackgroundImage(drawing, false);
+                            AutoLabeling.AddBackgroundImage(drawing, false);
                         }
-                        screenshot?.Dispose();
-                        mat.Dispose();
-                        drawing.Dispose();
+                        
+                        renderer?.CommitDetectionDrawCommands();
 
-                        if (!AutoLabeling.Started && (mainConfig.Data.CollectData || mainConfig.Data.AutoLabel))
+                        mat.Dispose();
+                        drawing?.Dispose();
+
+                        if (!AutoLabeling.Started && (config.CollectData || config.AutoLabel))
                         {
                             AutoLabeling.StartLabeling();
                         }
-                        else if (AutoLabeling.Started && !mainConfig.Data.CollectData && !mainConfig.Data.AutoLabel)
+                        else if (AutoLabeling.Started && !config.CollectData && !config.AutoLabel)
                         {
                             AutoLabeling.StopLabeling();
                         }
 
-                        if (iterationCount >= 1000 && mainConfig.Data.DebugMode)
+                        if (config.DebugMode)
                         {
-                            LogManager.Log($"Processed {iterationCount} iterations in {totalTime} ms.", LogManager.LogLevel.Info);
-                            int fps = (int)(iterationCount * 1000 / totalTime);
-                            LogManager.Log($"Average FPS: {fps}", LogManager.LogLevel.Info);
-                            LogManager.Log($"Average time per iteration: {totalTime / iterationCount} ms", LogManager.LogLevel.Info);
-                            iterationCount = 0;
-                            totalTime = 0;
+                            stopwatch.Stop();
+                            double processTime = stopwatch.Elapsed.TotalMilliseconds;
+                            processTimes.Enqueue(processTime);
+                            if (processTimes.Count > 100)
+                                processTimes.Dequeue();
+
+                            frameCount++;
+                            var now = DateTime.Now;
+                            var timeSinceLastUpdate = (now - lastFpsUpdate).TotalSeconds;
+                            if (timeSinceLastUpdate >= 1.0)
+                            {
+                                int fps = (int)(frameCount / timeSinceLastUpdate);
+                                double avgProcessTime = processTimes.Count > 0 ? processTimes.Average() : 0;
+                                Program.statistics = (fps, avgProcessTime);
+                                frameCount = 0;
+                                lastFpsUpdate = now;
+                            }
                         }
                     }
                     else if (InputManager.IsKeyOrMouseDown(mainConfig.Data.MenuKey))
@@ -200,6 +239,12 @@ namespace Spectrum.Detection
                             mainConfig.Data.ShowMenu = !mainConfig.Data.ShowMenu;
                             lastMenuToggle = now;
                         }
+                    }
+                    else
+                    {
+                        renderer?.ClearDetectionDrawCommands();
+                        renderer?.CommitDetectionDrawCommands();
+                        Thread.Sleep(5);
                     }
                 }
                 catch (Exception ex)
@@ -213,19 +258,23 @@ namespace Spectrum.Detection
                 }
             }
         }
-        OpenCvSharp.Point[][] MergeOverlappingContours(OpenCvSharp.Point[][] contours)
+        static OpenCvSharp.Point[][] MergeOverlappingContours(OpenCvSharp.Point[][] contours)
         {
-            var contourRects = new List<(Rect rect, List<int> indices)>();
+            if (contours.Length <= 1)
+                return contours;
+
+            var contourRects = new List<(Rect rect, List<int> indices)>(contours.Length);
             for (int i = 0; i < contours.Length; i++)
             {
                 var rect = Cv2.BoundingRect(contours[i]);
                 contourRects.Add((rect, new List<int> { i }));
             }
+            
             bool merged;
             do
             {
                 merged = false;
-                for (int i = 0; i < contourRects.Count; i++)
+                for (int i = 0; i < contourRects.Count - 1; i++)
                 {
                     var (rectA, indicesA) = contourRects[i];
                     for (int j = i + 1; j < contourRects.Count; j++)
@@ -239,10 +288,8 @@ namespace Spectrum.Detection
                                 Math.Max(rectA.X + rectA.Width, rectB.X + rectB.Width) - Math.Min(rectA.X, rectB.X),
                                 Math.Max(rectA.Y + rectA.Height, rectB.Y + rectB.Height) - Math.Min(rectA.Y, rectB.Y)
                             );
-                            var newIndices = new List<int>();
-                            newIndices.AddRange(indicesA);
-                            newIndices.AddRange(indicesB);
-                            contourRects[i] = (newRect, newIndices);
+                            indicesA.AddRange(indicesB);
+                            contourRects[i] = (newRect, indicesA);
                             contourRects.RemoveAt(j);
                             merged = true;
                             break;
@@ -252,15 +299,15 @@ namespace Spectrum.Detection
                 }
             } while (merged);
 
-            var mergedContours = new List<OpenCvSharp.Point[]>();
+            var mergedContours = new List<OpenCvSharp.Point[]>(contourRects.Count);
             foreach (var (rect, indices) in contourRects)
             {
-                var points = new List<OpenCvSharp.Point>();
+                var pointsList = new List<OpenCvSharp.Point>(indices.Count * 10);
                 foreach (var idx in indices)
                 {
-                    points.AddRange(contours[idx]);
+                    pointsList.AddRange(contours[idx]);
                 }
-                var hull = Cv2.ConvexHull(points);
+                var hull = Cv2.ConvexHull(pointsList);
                 mergedContours.Add(hull);
             }
             return mergedContours.ToArray();

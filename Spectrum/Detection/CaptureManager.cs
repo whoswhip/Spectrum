@@ -40,13 +40,12 @@ namespace Spectrum.Detection
                         adapter,
                         DriverType.Unknown,
                         DeviceCreationFlags.BgraSupport,
-                        new[]
-                        {
+                        [
                             FeatureLevel.Level_12_1,
                             FeatureLevel.Level_12_0,
                             FeatureLevel.Level_11_1,
                             FeatureLevel.Level_11_0
-                        },
+                        ],
                         out _device);
 
                     if (hr.Failure || _device == null)

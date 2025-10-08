@@ -7,7 +7,6 @@ using Spectrum.Input.InputLibraries.Arduino;
 using Spectrum.Input.InputLibraries.Makcu;
 using System.Collections.Concurrent;
 using System.Diagnostics;
-using System.Globalization;
 using System.Numerics;
 
 namespace Spectrum
@@ -15,8 +14,9 @@ namespace Spectrum
     partial class Renderer : Overlay
     {
         static (int width, int height) screenSize = SystemHelper.GetPrimaryScreenSize();
-        private List<Action<ImDrawListPtr>> drawCommands = new List<Action<ImDrawListPtr>>();
-        private readonly object drawCommandsLock = new object();
+        private List<Action<ImDrawListPtr>> detectionDrawCommands = new List<Action<ImDrawListPtr>>();
+        private List<Action<ImDrawListPtr>> activeDrawCommands = new List<Action<ImDrawListPtr>>();
+        private readonly object detectionDrawLock = new object();
         private readonly CaptureManager _captureManager;
 
         private bool _vsync = true;
@@ -30,6 +30,8 @@ namespace Spectrum
         private string ColorName = "New Color";
         private static bool scrollToBottom = true;
         private ColorInfo? selectedColor = null;
+        private string configName = "New Config";
+        private string? selectedConfigName = null;
 
         public Renderer(CaptureManager captureManager) : base("Spectrum", screenSize.width, screenSize.width)
         {
@@ -43,9 +45,10 @@ namespace Spectrum
         }
         override protected void Render()
         {
-            if (mainConfig.Data.DrawDetections || mainConfig.Data.DrawFOV)
+            var config = mainConfig.Data;
+            if (config.DrawDetections || config.DrawFOV || config.DebugMode || config.DrawAimPoint)
                 RenderOverlay();
-            if (!mainConfig.Data.ShowMenu)
+            if (!config.ShowMenu)
                 return;
 
             AddStyling();
@@ -72,19 +75,17 @@ namespace Spectrum
 
                 if (ImGuiExtensions.BeginPane("Aim Assist"))
                 {
-                    bool enableAiming = mainConfig.Data.EnableAim;
+                    bool enableAiming = config.EnableAim;
                     if (ImGui.Checkbox("##Enable Aiming", ref enableAiming))
-                    {
-                        mainConfig.Data.EnableAim = enableAiming;
-                    }
+                        config.EnableAim = enableAiming;
 
                     ImGui.SameLine();
                     ImGui.TextUnformatted("Enable Aiming");
 
-                    ImGui.SameLine(ImGui.GetContentRegionAvail().X - ImGui.CalcTextSize(_waitingForKeybind.GetValueOrDefault("Aiming") ? "Listening..." : mainConfig.Data.Keybind.ToString()).X);
+                    ImGui.SameLine(ImGui.GetContentRegionAvail().X - ImGui.CalcTextSize(_waitingForKeybind.GetValueOrDefault("Aiming") ? "Listening..." : config.Keybind.ToString()).X);
                     if (!_waitingForKeybind.GetValueOrDefault("Aiming", false))
                     {
-                        if (ImGui.Button($"{mainConfig.Data.Keybind.ToString()}###AimKeybind"))
+                        if (ImGui.Button($"{config.Keybind.ToString()}###AimKeybind"))
                         {
                             _waitingForKeybind["Aiming"] = true;
                             _pendingKeybind["Aiming"] = Keys.None;
@@ -100,42 +101,32 @@ namespace Spectrum
                         ImGui.Button("Listening... ###AimListening");
                         if (_pendingKeybind.GetValueOrDefault("Aiming", Keys.None) != Keys.None)
                         {
-                            mainConfig.Data.Keybind = _pendingKeybind["Aiming"];
+                            config.Keybind = _pendingKeybind["Aiming"];
                             _pendingKeybind["Aiming"] = Keys.None;
                             _waitingForKeybind["Aiming"] = false;
                         }
                     }
 
-                    bool closestToMouse = mainConfig.Data.ClosestToMouse;
+                    bool closestToMouse = config.ClosestToMouse;
                     if (ImGui.Checkbox(" Closest to Mouse", ref closestToMouse))
-                    {
-                        mainConfig.Data.ClosestToMouse = closestToMouse;
-                    }
+                        config.ClosestToMouse = closestToMouse;
 
-                    float sensitivity = (float)mainConfig.Data.Sensitivity;
+                    float sensitivity = (float)config.Sensitivity;
                     if (ImGuiExtensions.SliderFill("Sensitivity", ref sensitivity, 0.1f, 2.0f, "%.1f"))
-                    {
-                        mainConfig.Data.Sensitivity = sensitivity;
-                    }
+                        config.Sensitivity = sensitivity;
 
-                    float EmaSmootheningFactor = (float)mainConfig.Data.EmaSmootheningFactor;
-                    bool EmaSmoothening = mainConfig.Data.EmaSmoothening;
+                    float EmaSmootheningFactor = (float)config.EmaSmootheningFactor;
+                    bool EmaSmoothening = config.EmaSmoothening;
                     if (ImGui.Checkbox("Ema Smoothening", ref EmaSmoothening))
-                    {
-                        mainConfig.Data.EmaSmoothening = EmaSmoothening;
-                    }
+                        config.EmaSmoothening = EmaSmoothening;
 
                     if (EmaSmoothening)
-                    {
                         if (ImGuiExtensions.SliderFill("Ema Smoothening Factor", ref EmaSmootheningFactor, 0.01f, 1.0f))
-                        {
-                            mainConfig.Data.EmaSmootheningFactor = EmaSmootheningFactor;
-                        }
-                    }
+                            config.EmaSmootheningFactor = EmaSmootheningFactor;
 
                     ImGui.TextUnformatted("Movement Type");
                     ImGui.SetNextItemWidth(-1);
-                    MovementType AimPath = mainConfig.Data.AimMovementType;
+                    MovementType AimPath = config.AimMovementType;
                     if (ImGui.BeginCombo("##Movement Type", AimPath.ToString()))
                     {
                         foreach (MovementType type in Enum.GetValues(typeof(MovementType)))
@@ -143,80 +134,109 @@ namespace Spectrum
                             bool isSelected = (type == AimPath);
                             string displayName = string.Concat(type.ToString().Select((x, i) => i > 0 && char.IsUpper(x) ? " " + x : x.ToString())); // just adds a space before capitals except for the first
                             if (ImGui.Selectable(displayName, isSelected))
-                            {
-                                mainConfig.Data.AimMovementType = type;
-                            }
+                                config.AimMovementType = type;
                             if (isSelected)
-                            {
                                 ImGui.SetItemDefaultFocus();
-                            }
                         }
                         ImGui.EndCombo();
                     }
 
-                    float YOffset = (int)(mainConfig.Data.YOffsetPercent * 100);
-                    if (ImGuiExtensions.SliderFill("Y Offset (%)", ref YOffset, 0, 100, "%d%%"))
+                    bool YPixelOffset = config.YPixelOffset;
+                    if (ImGui.Checkbox("Pixel Based Offset (Y)", ref YPixelOffset))
+                        config.YPixelOffset = YPixelOffset;
+                    bool XPixelOffset = config.XPixelOffset;
+                    if (ImGui.Checkbox("Pixel Based Offset (X)", ref XPixelOffset))
+                        config.XPixelOffset = XPixelOffset;
+
+                    if (!YPixelOffset)
                     {
-                        mainConfig.Data.YOffsetPercent = ((double)YOffset / 100);
+                        float YOffset = (int)(config.YOffsetPercent * 100);
+                        if (ImGuiExtensions.SliderFill("Y Offset (%)", ref YOffset, 0, 100, "%d%%"))
+                        {
+                            config.YOffsetPercent = ((double)YOffset / 100);
+                        }
+                    }
+                    else
+                    {
+                        int YOffset = config.YOffsetPixels;
+                        if (ImGuiExtensions.SliderFill("Y Offset (px)", ref YOffset, -200, 200))
+                            config.YOffsetPixels = Math.Max(-200, YOffset);
                     }
 
-                    float XOffset = (int)(mainConfig.Data.XOffsetPercent * 100);
-                    if (ImGuiExtensions.SliderFill("X Offset (%)", ref XOffset, 0, 100, "%d%%"))
+                    if (!XPixelOffset)
                     {
-                        mainConfig.Data.XOffsetPercent = ((double)XOffset / 100);
+                        float XOffset = (int)(config.XOffsetPercent * 100);
+                        if (ImGuiExtensions.SliderFill("X Offset (%)", ref XOffset, 0, 100, "%d%%"))
+                        {
+                            config.XOffsetPercent = ((double)XOffset / 100);
+                        }
+                    }
+                    else
+                    {
+                        int XOffset = config.XOffsetPixels;
+                        if (ImGuiExtensions.SliderFill("X Offset (px)", ref XOffset, -200, 200))
+                            config.XOffsetPixels = Math.Max(-200, XOffset);
                     }
 
                     ImGui.SeparatorText("Overlay Settings");
 
-                    bool DrawFOV = mainConfig.Data.DrawFOV;
+                    bool DrawFOV = config.DrawFOV;
                     if (ImGui.Checkbox("##Draw FOV", ref DrawFOV))
-                    {
-                        mainConfig.Data.DrawFOV = DrawFOV;
-                    }
+                        config.DrawFOV = DrawFOV;
 
                     ImGui.SameLine();
                     ImGui.Text("Draw FOV");
 
                     ImGui.SameLine(ImGui.GetContentRegionAvail().X - 12);
-                    Vector4 FOVColor = mainConfig.Data.FOVColor;
+                    Vector4 FOVColor = config.FOVColor;
                     if (ImGui.ColorEdit4("FOV Color", ref FOVColor, ImGuiColorEditFlags.NoInputs | ImGuiColorEditFlags.NoLabel))
-                    {
-                        mainConfig.Data.FOVColor = FOVColor;
-                    }
+                        config.FOVColor = FOVColor;
 
-                    bool DrawDetections = mainConfig.Data.DrawDetections;
+                    bool DrawDetections = config.DrawDetections;
                     if (ImGui.Checkbox("##Draw Detections", ref DrawDetections))
-                    {
-                        mainConfig.Data.DrawDetections = DrawDetections;
-                    }
+                        config.DrawDetections = DrawDetections;
                     ImGui.SameLine();
                     ImGui.Text("Draw Detections");
 
                     ImGui.SameLine(ImGui.GetContentRegionAvail().X - 12);
-                    Vector4 DetectionColor = mainConfig.Data.DetectionColor;
+                    Vector4 DetectionColor = config.DetectionColor;
                     if (ImGui.ColorEdit4("Draw Color", ref DetectionColor, ImGuiColorEditFlags.NoInputs | ImGuiColorEditFlags.NoLabel))
+                        config.DetectionColor = DetectionColor;
+                    if (DrawDetections)
                     {
-                        mainConfig.Data.DetectionColor = DetectionColor;
+                        bool HighlightTarget = config.HighlightTarget;
+                        if (ImGui.Checkbox("Highlight Target", ref HighlightTarget))
+                            config.HighlightTarget = HighlightTarget;
+                        ImGui.SameLine(ImGui.GetContentRegionAvail().X - 12);
+                        Vector4 HighlightColor = config.TargetColor;
+                        if (ImGui.ColorEdit4("Highlight Color", ref HighlightColor, ImGuiColorEditFlags.NoInputs | ImGuiColorEditFlags.NoLabel))
+                            config.TargetColor = HighlightColor;
                     }
+
+                    bool DrawAimPoint = config.DrawAimPoint;
+                    if (ImGui.Checkbox("##Draw Aim Point", ref DrawAimPoint))
+                        config.DrawAimPoint = DrawAimPoint;
+                    ImGui.SameLine();
+                    ImGui.Text("Draw Aim Point");
+                    ImGui.SameLine(ImGui.GetContentRegionAvail().X - 12);
+                    Vector4 AimPointColor = config.AimPointColor;
+                    if (ImGui.ColorEdit4("Aim Point Color", ref AimPointColor, ImGuiColorEditFlags.NoInputs | ImGuiColorEditFlags.NoLabel))
+                        config.AimPointColor = AimPointColor;
 
                     if (DrawFOV)
                     {
                         ImGui.TextUnformatted("FOV Type");
                         ImGui.SetNextItemWidth(-1);
-                        FovType fovType = mainConfig.Data.FOVType;
+                        FovType fovType = config.FOVType;
                         if (ImGui.BeginCombo("##FOV Type", fovType.ToString()))
                         {
                             foreach (FovType type in Enum.GetValues(typeof(FovType)))
                             {
                                 bool isSelected = (type == fovType);
                                 if (ImGui.Selectable(type.ToString(), isSelected))
-                                {
-                                    mainConfig.Data.FOVType = type;
-                                }
+                                    config.FOVType = type;
                                 if (isSelected)
-                                {
                                     ImGui.SetItemDefaultFocus();
-                                }
                             }
                             ImGui.EndCombo();
                         }
@@ -226,15 +246,13 @@ namespace Spectrum
 
                 if (ImGuiExtensions.BeginPane("Triggerbot"))
                 {
-                    bool triggerBot = mainConfig.Data.TriggerBot;
+                    bool triggerBot = config.TriggerBot;
                     if (ImGui.Checkbox(" Enabled", ref triggerBot))
-                    {
-                        mainConfig.Data.TriggerBot = triggerBot;
-                    }
-                    ImGui.SameLine(ImGui.GetContentRegionAvail().X - ImGui.CalcTextSize(_waitingForKeybind.GetValueOrDefault("Trigger Key") ? "Listening..." : mainConfig.Data.TriggerKey.ToString()).X);
+                        config.TriggerBot = triggerBot;
+                    ImGui.SameLine(ImGui.GetContentRegionAvail().X - ImGui.CalcTextSize(_waitingForKeybind.GetValueOrDefault("Trigger Key") ? "Listening..." : config.TriggerKey.ToString()).X);
                     if (!_waitingForKeybind.GetValueOrDefault("Trigger Key", false))
                     {
-                        if (ImGui.Button($"{mainConfig.Data.TriggerKey}###TriggerKeybind"))
+                        if (ImGui.Button($"{config.TriggerKey}###TriggerKeybind"))
                         {
                             _waitingForKeybind["Trigger Key"] = true;
                             _pendingKeybind["Trigger Key"] = Keys.None;
@@ -250,7 +268,7 @@ namespace Spectrum
                         ImGui.Button("Listening... ###TriggerListening");
                         if (_pendingKeybind.GetValueOrDefault("Trigger Key", Keys.None) != Keys.None)
                         {
-                            mainConfig.Data.TriggerKey = _pendingKeybind["Trigger Key"];
+                            config.TriggerKey = _pendingKeybind["Trigger Key"];
                             _pendingKeybind["Trigger Key"] = Keys.None;
                             _waitingForKeybind["Trigger Key"] = false;
                         }
@@ -258,37 +276,27 @@ namespace Spectrum
 
                     if (triggerBot)
                     {
-                        int triggerDelay = mainConfig.Data.TriggerDelay;
+                        int triggerDelay = config.TriggerDelay;
                         if (ImGuiExtensions.SliderFill("Trigger Delay (ms)", ref triggerDelay, 1, 1000))
-                        {
-                            mainConfig.Data.TriggerDelay = triggerDelay;
-                        }
+                            config.TriggerDelay = triggerDelay;
 
-                        int triggerRadius = mainConfig.Data.TriggerRadius;
-                        if (ImGuiExtensions.SliderFill("Trigger Radius (px)", ref triggerRadius, 1, 100))
-                        {
-                            mainConfig.Data.TriggerRadius = triggerRadius;
-                        }
+                        int triggerFov = config.TriggerFov;
+                        if (ImGuiExtensions.SliderFill("Trigger FOV (px)", ref triggerFov, 1, 100))
+                            config.TriggerFov = triggerFov;
 
-                        int triggerDuration = mainConfig.Data.TriggerDuration;
+                        int triggerDuration = config.TriggerDuration;
                         if (ImGuiExtensions.SliderFill("Trigger Duration (ms)", ref triggerDuration, 1, 1000))
-                        {
-                            mainConfig.Data.TriggerDuration = triggerDuration;
-                        }
+                            config.TriggerDuration = triggerDuration;
 
-                        bool DrawTriggerRadius = mainConfig.Data.DrawTriggerRadius;
-                        if (ImGui.Checkbox("##Draw Trigger Radius", ref DrawTriggerRadius))
-                        {
-                            mainConfig.Data.DrawTriggerRadius = DrawTriggerRadius;
-                        }
+                        bool DrawTriggerFov = config.DrawTriggerFov;
+                        if (ImGui.Checkbox("##Draw Trigger FOV", ref DrawTriggerFov))
+                            config.DrawTriggerFov = DrawTriggerFov;
                         ImGui.SameLine();
-                        ImGui.TextUnformatted("Draw Trigger Radius");
+                        ImGui.TextUnformatted("Draw Trigger FOV");
                         ImGui.SameLine(ImGui.GetContentRegionAvail().X - 12);
-                        Vector4 RadiusColor = mainConfig.Data.TriggerRadiusColor;
+                        Vector4 RadiusColor = config.TriggerRadiusColor;
                         if (ImGui.ColorEdit4("Trigger Color", ref RadiusColor, ImGuiColorEditFlags.NoInputs | ImGuiColorEditFlags.NoLabel))
-                        {
-                            mainConfig.Data.DetectionColor = RadiusColor;
-                        }
+                            config.TriggerRadiusColor = RadiusColor;
 
                     }
                     ImGuiExtensions.EndPane();
@@ -307,39 +315,42 @@ namespace Spectrum
                 {
                     ImGui.TextUnformatted("Image Width");
                     ImGui.SetNextItemWidth(-1);
-                    int ImageWidth = mainConfig.Data.ImageWidth;
+                    int ImageWidth = config.ImageWidth;
                     if (ImGui.InputInt("##Image Width", ref ImageWidth, 1, screenSize.width))
                     {
                         if (ImageWidth < 1)
                             ImageWidth = 1;
                         else if (ImageWidth > screenSize.width)
                             ImageWidth = screenSize.width;
-                        mainConfig.Data.ImageWidth = ImageWidth;
+                        config.ImageWidth = ImageWidth;
                     }
 
                     ImGui.TextUnformatted("Image Height");
                     ImGui.SetNextItemWidth(-1);
-                    int ImageHeight = mainConfig.Data.ImageHeight;
+                    int ImageHeight = config.ImageHeight;
                     if (ImGui.InputInt("##Image Height", ref ImageHeight, 1, screenSize.height))
                     {
                         if (ImageHeight < 1)
                             ImageHeight = 1;
                         else if (ImageHeight > screenSize.height)
                             ImageHeight = screenSize.height;
-                        mainConfig.Data.ImageHeight = ImageHeight;
+                        config.ImageHeight = ImageHeight;
                     }
 
                     ImGui.SetNextItemWidth(-1);
-                    Scalar upperHSV = mainConfig.Data.UpperHSV;
+                    Scalar upperHSV = config.UpperHSV;
                     if (ImGuiExtensions.ColorEditHSV3("Upper HSV", ref upperHSV))
-                    {
-                        mainConfig.Data.UpperHSV = upperHSV;
-                    }
-                    Scalar lowerHSV = mainConfig.Data.LowerHSV;
+                        config.UpperHSV = upperHSV;
+                    Scalar lowerHSV = config.LowerHSV;
                     if (ImGuiExtensions.ColorEditHSV3("Lower HSV", ref lowerHSV))
-                    {
-                        mainConfig.Data.LowerHSV = lowerHSV;
-                    }
+                        config.LowerHSV = lowerHSV;
+
+                    int Threshold = config.Threshold;
+                    if (ImGuiExtensions.SliderFill("Threshold", ref Threshold, 1, 255))
+                        config.Threshold = Threshold;
+
+                    if (ImGui.Button("Open HSV Range Selector"))
+                        _showHSVRangeWindow = true;
 
                     ImGuiExtensions.EndPane();
                 }
@@ -356,7 +367,7 @@ namespace Spectrum
                         {
                             selectedColor = color;
                             ColorName = color.Name;
-                            mainConfig.Data.SelectedColor = selectedColor.Name;
+                            config.SelectedColor = selectedColor.Name;
                         }
                     }
                     ImGui.EndChild();
@@ -370,9 +381,9 @@ namespace Spectrum
                     {
                         if (selectedColor != null)
                         {
-                            mainConfig.Data.SelectedColor = selectedColor.Name;
-                            mainConfig.Data.UpperHSV = selectedColor.Upper;
-                            mainConfig.Data.LowerHSV = selectedColor.Lower;
+                            config.SelectedColor = selectedColor.Name;
+                            config.UpperHSV = selectedColor.Upper;
+                            config.LowerHSV = selectedColor.Lower;
                             ColorName = selectedColor.Name;
                         }
                     }
@@ -382,13 +393,12 @@ namespace Spectrum
                     {
                         if (colors.Find(c => c.Name.Equals(ColorName, StringComparison.OrdinalIgnoreCase)) is ColorInfo existingColor)
                         {
-                            existingColor.Upper = mainConfig.Data.UpperHSV;
-                            existingColor.Lower = mainConfig.Data.LowerHSV;
-                            selectedColor = existingColor;
+                            existingColor.Upper = config.UpperHSV;
+                            existingColor.Lower = config.LowerHSV;
                         }
                         else
                         {
-                            colors.Add(new ColorInfo(ColorName, mainConfig.Data.UpperHSV, mainConfig.Data.LowerHSV));
+                            colors.Add(new ColorInfo(ColorName, config.UpperHSV, config.LowerHSV));
                             colorConfig.SaveConfig();
                             selectedColor = colors.Find(c => c.Name.Equals(ColorName, StringComparison.OrdinalIgnoreCase));
                         }
@@ -403,12 +413,15 @@ namespace Spectrum
                             colorConfig.SaveConfig();
                             if (colors.Count > 0)
                             {
-                                int nextIndex = Math.Max(0, currentIndex - 1);
-                                selectedColor = colors[currentIndex - 1];
-                                mainConfig.Data.SelectedColor = selectedColor.Name;
-                                mainConfig.Data.UpperHSV = selectedColor.Upper;
-                                mainConfig.Data.LowerHSV = selectedColor.Lower;
-                                ColorName = selectedColor.Name;
+                                if (selectedColor.Name == config.SelectedColor)
+                                {
+                                    int nextIndex = Math.Max(0, currentIndex - 1);
+                                    selectedColor = colors[currentIndex - 1];
+                                    config.SelectedColor = selectedColor.Name;
+                                    config.UpperHSV = selectedColor.Upper;
+                                    config.LowerHSV = selectedColor.Lower;
+                                    ColorName = selectedColor.Name;
+                                }
                             }
                             else
                             {
@@ -423,6 +436,114 @@ namespace Spectrum
                 ImGui.EndTabItem();
             }
 
+            if (ImGui.BeginTabItem("Configs"))
+            {
+                ImGuiExtensions.BeginPaneGroup("Config Panes", 2, 12f, new Vector2(12, 10), ImGuiChildFlags.AlwaysUseWindowPadding, ImGuiWindowFlags.None, 0f);
+
+                if (ImGuiExtensions.BeginPane("Config Management"))
+                {
+                    ImGui.TextUnformatted("Available Configs");
+                    ImGui.PushStyleColor(ImGuiCol.ChildBg, new Vector4(0.110f, 0.110f, 0.125f, 1.000f));
+                    ImGui.BeginChild("##ConfigListChild", new Vector2(0, ImGui.GetContentRegionAvail().Y / 2), ImGuiChildFlags.None);
+                    ImGui.Dummy(new Vector2(0, 4));
+
+                    var availableConfigs = mainConfig.AvailableConfigs;
+                    foreach (var _config in availableConfigs)
+                    {
+                        if (ImGui.Selectable("  " + _config, selectedConfigName == _config))
+                        {
+                            selectedConfigName = _config;
+                            configName = _config;
+                        }
+                    }
+
+                    ImGui.EndChild();
+                    ImGui.PopStyleColor();
+
+                    ImGui.SetNextItemWidth(-1);
+                    ImGui.InputTextWithHint("##ConfigName", "Config Name", ref configName, 100);
+
+                    Vector2 size = new Vector2((ImGui.GetContentRegionAvail().X / 3) - 5.7f, 22);
+
+                    if (ImGui.Button("Load Config", size))
+                    {
+                        if (!string.IsNullOrEmpty(selectedConfigName))
+                        {
+                            bool success = mainConfig.LoadConfigFromDirectory(selectedConfigName);
+                            if (success)
+                                configName = selectedConfigName;
+                        }
+                    }
+
+                    ImGui.SameLine();
+                    if (ImGui.Button("Save Config", size))
+                    {
+                        if (!string.IsNullOrEmpty(configName))
+                        {
+                            mainConfig.SaveConfigToDirectory(configName);
+                            selectedConfigName = configName;
+                        }
+                    }
+
+                    ImGui.SameLine();
+                    if (ImGui.Button("Delete Config", size))
+                    {
+                        if (!string.IsNullOrEmpty(selectedConfigName))
+                        {
+                            bool success = mainConfig.DeleteConfigFromDirectory(selectedConfigName);
+                            if (success)
+                            {
+                                selectedConfigName = null;
+                                configName = "New Config";
+                            }
+                        }
+                    }
+
+                    ImGuiExtensions.EndPane();
+                }
+
+                if (ImGuiExtensions.BeginPane("Current Config"))
+                {
+                    ImGui.PushStyleColor(ImGuiCol.FrameBg, new Vector4(0.110f, 0.110f, 0.125f, 1.000f));
+                    ImGui.SetNextItemWidth(-1);
+                    string currentConfig = mainConfig.CurrentConfigName;
+                    ImGui.InputText("##CurrentConfig", ref currentConfig, 256, ImGuiInputTextFlags.ReadOnly);
+                    ImGui.PopStyleColor();
+
+                    Vector2 fullSize = new Vector2(ImGui.GetContentRegionAvail().X, 22);
+
+                    if (ImGui.Button("Save Current to Default", fullSize))
+                        mainConfig.SaveConfig();
+
+                    if (ImGui.Button("Save Current Config", fullSize))
+                        if (!string.IsNullOrEmpty(configName))
+                            mainConfig.SaveConfigToDirectory(configName);
+
+                    if (ImGui.Button("Open Configs Folder", fullSize))
+                    {
+                        string configDir = Path.Combine(Directory.GetCurrentDirectory(), "configs");
+                        if (Directory.Exists(configDir))
+                        {
+                            Process.Start(new ProcessStartInfo
+                            {
+                                FileName = "explorer.exe",
+                                Arguments = configDir,
+                                UseShellExecute = true
+                            });
+                        }
+                        else
+                        {
+                            LogManager.Log($"Directory doesn't exist: {configDir}", LogManager.LogLevel.Error);
+                        }
+                    }
+
+                    ImGuiExtensions.EndPane();
+                }
+
+                ImGui.EndTabItem();
+            }
+
+
             if (ImGui.BeginTabItem("Settings"))
             {
                 ImGuiExtensions.BeginPaneGroup("Settings Panes", 2, 12f, new Vector2(12, 10), ImGuiChildFlags.AlwaysUseWindowPadding, ImGuiWindowFlags.None, 0f);
@@ -431,7 +552,7 @@ namespace Spectrum
                 {
                     ImGui.TextUnformatted("Movement Method");
                     ImGui.SetNextItemWidth(-1);
-                    MovementMethod movementMethod = mainConfig.Data.MovementMethod;
+                    MovementMethod movementMethod = config.MovementMethod;
                     if (ImGui.BeginCombo("##Movement Method", movementMethod.ToString()))
                     {
                         foreach (MovementMethod method in Enum.GetValues(typeof(MovementMethod)))
@@ -439,7 +560,7 @@ namespace Spectrum
                             bool isSelected = (method == movementMethod);
                             if (ImGui.Selectable(method.ToString(), isSelected))
                             {
-                                mainConfig.Data.MovementMethod = method;
+                                config.MovementMethod = method;
                                 switch (method)
                                 {
                                     case MovementMethod.Makcu:
@@ -449,7 +570,7 @@ namespace Spectrum
                                             if (!ok)
                                             {
                                                 LogManager.Log("Makcu failed to initialize. Falling back to MouseEvent.", LogManager.LogLevel.Warning);
-                                                mainConfig.Data.MovementMethod = MovementMethod.MouseEvent;
+                                                config.MovementMethod = MovementMethod.MouseEvent;
                                                 MakcuMain.Unload();
                                             }
                                             break;
@@ -461,7 +582,7 @@ namespace Spectrum
                                             if (!ok)
                                             {
                                                 LogManager.Log("Arduino failed to initialize. Falling back to MouseEvent.", LogManager.LogLevel.Warning);
-                                                mainConfig.Data.MovementMethod = MovementMethod.MouseEvent;
+                                                config.MovementMethod = MovementMethod.MouseEvent;
                                                 ArduinoMain.Close();
                                             }
                                             break;
@@ -473,16 +594,14 @@ namespace Spectrum
                                 }
                             }
                             if (isSelected)
-                            {
                                 ImGui.SetItemDefaultFocus();
-                            }
                         }
                         ImGui.EndCombo();
                     }
 
                     ImGui.TextUnformatted("Capture Method");
                     ImGui.SetNextItemWidth(-1);
-                    CaptureMethod captureMethod = mainConfig.Data.CaptureMethod;
+                    CaptureMethod captureMethod = config.CaptureMethod;
                     if (ImGui.BeginCombo("##Capture Method", captureMethod.ToString()))
                     {
                         foreach (CaptureMethod method in Enum.GetValues(typeof(CaptureMethod)))
@@ -500,53 +619,41 @@ namespace Spectrum
                                         _method = CaptureMethod.GDI;
                                     }
                                 }
-                                mainConfig.Data.CaptureMethod = _method;
+                                config.CaptureMethod = _method;
                             }
                             if (isSelected)
-                            {
                                 ImGui.SetItemDefaultFocus();
-                            }
                         }
                         ImGui.EndCombo();
                     }
 
-                    bool CollectData = mainConfig.Data.CollectData;
+                    bool CollectData = config.CollectData;
                     if (ImGui.Checkbox("Collect Data", ref CollectData))
-                    {
-                        mainConfig.Data.CollectData = CollectData;
-                    }
+                        config.CollectData = CollectData;
 
-                    bool AutoLabel = mainConfig.Data.AutoLabel;
+                    bool AutoLabel = config.AutoLabel;
                     if (ImGui.Checkbox("Auto Label", ref AutoLabel))
                     {
                         if (!CollectData && AutoLabel)
-                            mainConfig.Data.CollectData = true;
+                            config.CollectData = true;
 
-                        mainConfig.Data.AutoLabel = AutoLabel;
+                        config.AutoLabel = AutoLabel;
                     }
 
                     if (ImGui.Checkbox("VSync", ref _vsync))
-                    {
                         VSync = _vsync;
-                    }
 
-                    bool DebugMode = mainConfig.Data.DebugMode;
+                    bool DebugMode = config.DebugMode;
                     if (ImGui.Checkbox("Debug Mode", ref DebugMode))
-                    {
-                        mainConfig.Data.DebugMode = DebugMode;
-                    }
+                        config.DebugMode = DebugMode;
 
                     if (!VSync)
-                    {
                         if (ImGuiExtensions.SliderFill("FPS Limit", ref _fpsLimit, 30, 480))
-                        {
                             FPSLimit = _fpsLimit;
-                        }
-                    }
 
                     ImGui.TextUnformatted("Background Image Interval");
                     ImGui.SetNextItemWidth(-1);
-                    int BackgroundImageInterval = mainConfig.Data.BackgroundImageInterval;
+                    int BackgroundImageInterval = config.BackgroundImageInterval;
                     if (ImGui.InputInt("##Background Image Interval", ref BackgroundImageInterval, 1, 1000))
                     {
                         if (BackgroundImageInterval < 1)
@@ -554,12 +661,12 @@ namespace Spectrum
                         else if (BackgroundImageInterval > 1000)
                             BackgroundImageInterval = 1000;
 
-                        mainConfig.Data.BackgroundImageInterval = BackgroundImageInterval;
+                        config.BackgroundImageInterval = BackgroundImageInterval;
                     }
 
                     if (!_waitingForKeybind.GetValueOrDefault("Menu Key", false))
                     {
-                        if (ImGui.Button(mainConfig.Data.MenuKey.ToString()))
+                        if (ImGui.Button(config.MenuKey.ToString()))
                         {
                             _waitingForKeybind["Menu Key"] = true;
                             _pendingKeybind["Menu Key"] = Keys.None;
@@ -575,7 +682,7 @@ namespace Spectrum
                         ImGui.Button("Listening...");
                         if (_pendingKeybind.GetValueOrDefault("Menu Key", Keys.None) != Keys.None)
                         {
-                            mainConfig.Data.MenuKey = _pendingKeybind["Menu Key"];
+                            config.MenuKey = _pendingKeybind["Menu Key"];
                             _pendingKeybind["Menu Key"] = Keys.None;
                             _waitingForKeybind["Menu Key"] = false;
                         }
@@ -583,29 +690,6 @@ namespace Spectrum
                     ImGui.SameLine();
                     ImGui.Text("Menu Keybind");
 
-                    if (ImGui.Button("Save Configs"))
-                    {
-                        mainConfig.SaveConfig();
-                        colorConfig.SaveConfig();
-                    }
-                    ImGui.SameLine();
-                    if (ImGui.Button("Open Folder"))
-                    {
-                        string folderPath = Path.Combine(Directory.GetCurrentDirectory(), "bin\\configs");
-                        if (Directory.Exists(folderPath))
-                        {
-                            Process.Start(new ProcessStartInfo
-                            {
-                                FileName = "explorer.exe",
-                                Arguments = folderPath,
-                                UseShellExecute = true
-                            });
-                        }
-                        else
-                        {
-                            LogManager.Log($"Directory doesnt exist: {folderPath}", LogManager.LogLevel.Error);
-                        }
-                    }
                     ImGuiExtensions.EndPane();
                 }
 
@@ -634,23 +718,17 @@ namespace Spectrum
                     ImGui.Dummy(new Vector2(0, 1));
 
                     if (ImGui.Button("Save Logs"))
-                    {
                         LogManager.SaveLog($"bin\\logs\\{DateTime.Now.ToString("MM-dd_HH-mm-ss")}_spectrum_log.txt");
-                    }
 
                     ImGui.SameLine();
 
                     if (ImGui.Button("Clear Logs"))
-                    {
                         LogManager.ClearLog();
-                    }
 
                     ImGui.SameLine();
 
                     if (ImGui.Button("Open Log Folder"))
-                    {
                         LogManager.OpenLogFolder();
-                    }
                     ImGuiExtensions.EndPane();
                 }
 
@@ -659,9 +737,12 @@ namespace Spectrum
                 ImGui.EndTabItem();
             }
 
+
             ImGui.EndTabBar();
 
             ImGui.End();
+
+            RenderHSVRangeWindow();
         }
 
 
@@ -671,29 +752,37 @@ namespace Spectrum
             ImGui.SetNextWindowPos(new Vector2(0, 0), ImGuiCond.Always);
             ImGui.Begin("Overlay", ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoInputs | ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoBackground | ImGuiWindowFlags.NoFocusOnAppearing | ImGuiWindowFlags.NoNavFocus);
             var drawList = ImGui.GetWindowDrawList();
+            var config = mainConfig.Data;
 
-            if (mainConfig.Data.DrawFOV)
+            if (config.DrawFOV)
             {
-                if (mainConfig.Data.FOVType == FovType.Rectangle)
+                if (config.FOVType == FovType.Rectangle)
                 {
-                    AddRect(new Rectangle(
-                        ((screenSize.width - mainConfig.Data.ImageWidth) / 2) - 1,
-                        ((screenSize.height - mainConfig.Data.ImageHeight) / 2) - 1,
-                        mainConfig.Data.ImageWidth + 2,
-                        mainConfig.Data.ImageHeight + 2
-                    ), mainConfig.Data.FOVColor);
+                    drawList.AddRect(new Vector2((screenSize.width - config.ImageWidth) / 2, (screenSize.height - config.ImageHeight) / 2),
+                        new Vector2((screenSize.width + config.ImageWidth) / 2, (screenSize.height + config.ImageHeight) / 2),
+                        ImGui.GetColorU32(config.FOVColor), 0.0f, ImDrawFlags.None, 1.0f);
                 }
-                else if (mainConfig.Data.FOVType == FovType.Circle)
+                else if (config.FOVType == FovType.Circle)
                 {
-                    AddCircle(new Vector2(screenSize.width / 2, screenSize.height / 2), mainConfig.Data.ImageWidth / 2, mainConfig.Data.FOVColor, 100, 1.0f);
-                }
+                    drawList.AddCircle(new Vector2(screenSize.width / 2, screenSize.height / 2), config.ImageWidth / 2,
+                        ImGui.GetColorU32(config.FOVColor), 100, 1.0f);
+                } // added straight to drawlist to prevent caching/flickering
+            }
+
+            if (config.DebugMode)
+            {
+                var stats = Program.statistics;
+                double avgTime = Math.Round(stats.avgProcessTime, 2);
+                Vector2 textSize = ImGui.CalcTextSize($"FPS: {stats.fps} | AVG Process Time: {avgTime}ms");
+                drawList.AddRectFilled(new Vector2(10, 10), new Vector2(10 + textSize.X + 10, 10 + textSize.Y + 10), ImGui.GetColorU32(new Vector4(0, 0, 0, 0.8f)), 5.0f);
+                ImGui.SetCursorPos(new Vector2(15, 15));
+                ImGui.TextUnformatted($"FPS: {stats.fps} | AVG Process Time: {avgTime}ms");
             }
 
             List<Action<ImDrawListPtr>> _drawCommands;
-            lock (drawCommandsLock)
+            lock (detectionDrawLock)
             {
-                _drawCommands = drawCommands.ToList();
-                drawCommands.Clear();
+                _drawCommands = activeDrawCommands.ToList();
             }
 
             foreach (var cmd in _drawCommands)
@@ -787,17 +876,17 @@ namespace Spectrum
         }
         public void AddRect(Rectangle rect, Vector4 color, float thickness = 1.0f)
         {
-            lock (drawCommandsLock)
+            lock (detectionDrawLock)
             {
-                drawCommands.Add(drawList => drawList.AddRect(new Vector2(rect.Left, rect.Top), new Vector2(rect.Right, rect.Bottom), ColorFromVector4(color), 0, 0, thickness));
+                detectionDrawCommands.Add(drawList => drawList.AddRect(new Vector2(rect.Left, rect.Top), new Vector2(rect.Right, rect.Bottom), ColorFromVector4(color), 0, 0, thickness));
             }
         }
 
         public void AddLine(Vector2 p1, Vector2 p2, Vector4 color, float thickness = 1.0f)
         {
-            lock (drawCommandsLock)
+            lock (detectionDrawLock)
             {
-                drawCommands.Add(drawList => drawList.AddLine(p1, p2, ColorFromVector4(color), thickness));
+                detectionDrawCommands.Add(drawList => drawList.AddLine(p1, p2, ColorFromVector4(color), thickness));
             }
         }
 
@@ -806,9 +895,9 @@ namespace Spectrum
             if (numSegments <= 0)
                 numSegments = (int)(Math.Max(1, radius / 2.0f));
 
-            lock (drawCommandsLock)
+            lock (detectionDrawLock)
             {
-                drawCommands.Add(drawList => drawList.AddCircle(center, radius, ColorFromVector4(color), numSegments, thickness));
+                detectionDrawCommands.Add(drawList => drawList.AddCircle(center, radius, ColorFromVector4(color), numSegments, thickness));
             }
         }
 
@@ -816,9 +905,26 @@ namespace Spectrum
         {
             if (string.IsNullOrEmpty(text))
                 return;
-            lock (drawCommandsLock)
+            lock (detectionDrawLock)
             {
-                drawCommands.Add(drawList => drawList.AddText(ImGui.GetFont(), fontSize, pos, ColorFromVector4(color), text));
+                detectionDrawCommands.Add(drawList => drawList.AddText(ImGui.GetFont(), fontSize, pos, ColorFromVector4(color), text));
+            }
+        }
+
+        public void CommitDetectionDrawCommands()
+        {
+            lock (detectionDrawLock)
+            {
+                activeDrawCommands = detectionDrawCommands;
+                detectionDrawCommands = new List<Action<ImDrawListPtr>>();
+            }
+        }
+
+        public void ClearDetectionDrawCommands()
+        {
+            lock (detectionDrawLock)
+            {
+                detectionDrawCommands.Clear();
             }
         }
 
@@ -836,468 +942,6 @@ namespace Spectrum
             int b = (int)(Math.Clamp(color.Z, 0f, 1f) * 255.0f);
             int a = (int)(Math.Clamp(color.W, 0f, 1f) * 255.0f);
             return (uint)((a << 24) | (b << 16) | (g << 8) | r);
-        }
-    }
-    public static class ImGuiExtensions
-    {
-        private static readonly Dictionary<string, string> _sliderEditBuffers = new();
-        public static bool ColorEditHSV3(string label, ref Scalar hsv)
-        {
-            ImGui.PushID(label);
-
-            int h = (int)Math.Clamp(Math.Round(hsv.Val0), 0, 179);
-            int s = (int)Math.Clamp(Math.Round(hsv.Val1), 0, 255);
-            int v = (int)Math.Clamp(Math.Round(hsv.Val2), 0, 255);
-
-            bool changed = false;
-            bool inputChanged = false;
-
-            ImGui.TextUnformatted(label);
-
-            var style = ImGui.GetStyle();
-            float avail = ImGui.GetContentRegionAvail().X;
-            float previewWidth = 21.0f;
-            float totalSpacing = style.ItemSpacing.X * 3;
-            float partWidth = Math.Max(24.0f, (avail - totalSpacing - previewWidth) / 3.0f);
-
-            ImGui.PushItemWidth(partWidth);
-            if (ImGui.InputInt($"##{label}H", ref h, 0, 179))
-                inputChanged = true;
-            ImGui.PopItemWidth();
-
-            ImGui.SameLine();
-            ImGui.PushItemWidth(partWidth);
-            if (ImGui.InputInt($"##{label}S", ref s, 0, 255))
-                inputChanged = true;
-            ImGui.PopItemWidth();
-
-            ImGui.SameLine();
-            ImGui.PushItemWidth(partWidth);
-            if (ImGui.InputInt($"##{label}V", ref v, 0, 255))
-                inputChanged = true;
-            ImGui.PopItemWidth();
-
-            if (inputChanged)
-            {
-                hsv = new Scalar(h, s, v);
-                changed = true;
-            }
-
-            Vector3 rgbColor = OpenCvHsvToRgb(hsv);
-
-            ImGui.SameLine();
-            Vector2 btnSize = new Vector2(previewWidth, previewWidth);
-            Vector4 previewCol4 = new Vector4(rgbColor.X, rgbColor.Y, rgbColor.Z, 1.0f);
-            string previewBtnId = $"##ColorPreview_{label}";
-            if (ImGui.ColorButton(previewBtnId, previewCol4, ImGuiColorEditFlags.NoInputs, btnSize))
-            {
-                ImGui.OpenPopup($"##ColorPicker_{label}");
-            }
-            if (ImGui.BeginPopup($"##ColorPicker_{label}"))
-            {
-                Vector3 picker = rgbColor;
-                if (ImGui.ColorPicker3($"##ColorPickerPicker_{label}", ref picker))
-                {
-                    rgbColor = picker;
-                    Scalar newHsv = RgbToOpenCvHsv(rgbColor);
-                    hsv = newHsv;
-                    changed = true;
-                }
-                ImGui.EndPopup();
-            }
-
-            ImGui.PopID();
-
-            return changed;
-        }
-
-        private static Vector3 OpenCvHsvToRgb(Scalar hsv)
-        {
-            double h = Math.Clamp(hsv.Val0, 0.0, 179.0);
-            double s = Math.Clamp(hsv.Val1, 0.0, 255.0);
-            double v = Math.Clamp(hsv.Val2, 0.0, 255.0);
-
-            double hueDeg = (h / 179.0) * 360.0;
-            if (hueDeg >= 360.0)
-                hueDeg -= 360.0;
-
-            double saturation = s / 255.0;
-            double value = v / 255.0;
-
-            if (saturation <= double.Epsilon)
-            {
-                return new Vector3((float)value, (float)value, (float)value);
-            }
-
-            double c = value * saturation;
-            double huePrime = hueDeg / 60.0;
-            double x = c * (1 - Math.Abs(huePrime % 2 - 1));
-            double m = value - c;
-
-            double r1 = 0, g1 = 0, b1 = 0;
-
-            int region = (int)Math.Floor(huePrime);
-            if (region >= 6)
-                region = 0;
-
-            switch (region)
-            {
-                case 0:
-                    r1 = c;
-                    g1 = x;
-                    b1 = 0;
-                    break;
-                case 1:
-                    r1 = x;
-                    g1 = c;
-                    b1 = 0;
-                    break;
-                case 2:
-                    r1 = 0;
-                    g1 = c;
-                    b1 = x;
-                    break;
-                case 3:
-                    r1 = 0;
-                    g1 = x;
-                    b1 = c;
-                    break;
-                case 4:
-                    r1 = x;
-                    g1 = 0;
-                    b1 = c;
-                    break;
-                case 5:
-                default:
-                    r1 = c;
-                    g1 = 0;
-                    b1 = x;
-                    break;
-            }
-
-            double r = r1 + m;
-            double g = g1 + m;
-            double b = b1 + m;
-
-            return new Vector3(
-                (float)Math.Clamp(r, 0.0, 1.0),
-                (float)Math.Clamp(g, 0.0, 1.0),
-                (float)Math.Clamp(b, 0.0, 1.0)
-            );
-        }
-
-        private static Scalar RgbToOpenCvHsv(Vector3 rgb)
-        {
-            double r = Math.Clamp(rgb.X, 0f, 1f);
-            double g = Math.Clamp(rgb.Y, 0f, 1f);
-            double b = Math.Clamp(rgb.Z, 0f, 1f);
-
-            double max = Math.Max(r, Math.Max(g, b));
-            double min = Math.Min(r, Math.Min(g, b));
-            double delta = max - min;
-
-            double hueDeg;
-            if (delta <= double.Epsilon)
-            {
-                hueDeg = 0;
-            }
-            else if (Math.Abs(max - r) < double.Epsilon)
-            {
-                hueDeg = 60.0 * (((g - b) / delta) % 6.0);
-            }
-            else if (Math.Abs(max - g) < double.Epsilon)
-            {
-                hueDeg = 60.0 * (((b - r) / delta) + 2.0);
-            }
-            else
-            {
-                hueDeg = 60.0 * (((r - g) / delta) + 4.0);
-            }
-
-            if (hueDeg < 0)
-                hueDeg += 360.0;
-
-            double saturation = max <= double.Epsilon ? 0.0 : (delta / max);
-            double value = max;
-
-            int h = (int)Math.Round((hueDeg / 360.0) * 179.0);
-            int s = (int)Math.Round(saturation * 255.0);
-            int v = (int)Math.Round(value * 255.0);
-
-            h = Math.Clamp(h, 0, 179);
-            s = Math.Clamp(s, 0, 255);
-            v = Math.Clamp(v, 0, 255);
-
-            return new Scalar(h, s, v);
-        }
-
-        public static bool SliderFill(string label, ref float value, float min, float max, string format = "%.2f")
-        {
-            bool changed = false;
-
-            string FormatValue(float v)
-            {
-                if (string.IsNullOrEmpty(format))
-                    return v.ToString(CultureInfo.InvariantCulture);
-
-                bool percent = format.Contains("%%");
-                string core = format.Replace("%%", "");
-
-                string result;
-                if (core.Contains("%d"))
-                {
-                    result = ((int)Math.Round(v)).ToString(CultureInfo.InvariantCulture);
-                }
-                else
-                {
-                    int pos = core.IndexOf("%.");
-                    if (pos >= 0)
-                    {
-                        int fPos = core.IndexOf('f', pos + 2);
-                        if (fPos > pos)
-                        {
-                            string digits = core.Substring(pos + 2, fPos - (pos + 2));
-                            if (int.TryParse(digits, out int prec))
-                                result = v.ToString("F" + prec, CultureInfo.InvariantCulture);
-                            else
-                                result = v.ToString("F2", CultureInfo.InvariantCulture);
-                        }
-                        else
-                            result = v.ToString("F2", CultureInfo.InvariantCulture);
-                    }
-                    else if (core.Contains("%f"))
-                    {
-                        result = v.ToString("F2", CultureInfo.InvariantCulture);
-                    }
-                    else
-                    {
-                        result = v.ToString(core, CultureInfo.InvariantCulture);
-                    }
-                }
-                if (percent) result += "%";
-                return result;
-            }
-
-            ImGui.TextUnformatted(label);
-            string valueStr = FormatValue(value);
-            ImGui.SameLine(ImGui.GetContentRegionAvail().X - ImGui.CalcTextSize(valueStr).X + 12);
-            ImGui.TextUnformatted(valueStr);
-
-            float sliderWidth = ImGui.GetContentRegionAvail().X;
-            float sliderHeight = ImGui.GetFrameHeight();
-
-            ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, Vector2.Zero);
-            ImGui.InvisibleButton("##" + label, new Vector2(sliderWidth, sliderHeight));
-            bool active = ImGui.IsItemActive();
-            bool activated = ImGui.IsItemActivated();
-            var io = ImGui.GetIO();
-
-            if (activated && (io.KeyCtrl))
-            {
-                string popupId = $"##SliderFillEditPopup_{label}";
-                string seed = value.ToString(CultureInfo.InvariantCulture);
-                if (!_sliderEditBuffers.ContainsKey(label))
-                    _sliderEditBuffers[label] = seed;
-                ImGui.OpenPopup(popupId);
-            }
-
-            if (active && !io.KeyCtrl)
-            {
-                float mouseDelta = ImGui.GetIO().MousePos.X - ImGui.GetItemRectMin().X;
-                float newValue = min + (mouseDelta / sliderWidth) * (max - min);
-                newValue = Math.Clamp(newValue, min, max);
-                if (format.Contains("%d"))
-                {
-                    newValue = (int)Math.Round(newValue);
-                }
-                else
-                {
-                    int pos = format.IndexOf("%.");
-                    if (pos >= 0)
-                    {
-                        int fPos = format.IndexOf('f', pos + 2);
-                        if (fPos > pos)
-                        {
-                            string digits = format.Substring(pos + 2, fPos - (pos + 2));
-                            if (int.TryParse(digits, out int prec))
-                                newValue = (float)Math.Round(newValue, prec);
-                        }
-                    }
-                }
-                if (Math.Abs(newValue - value) > float.Epsilon)
-                {
-                    value = newValue;
-                    changed = true;
-                }
-            }
-
-            string popupIdOuter = $"##SliderFillEditPopup_{label}";
-            if (ImGui.BeginPopup(popupIdOuter))
-            {
-                ImGui.TextUnformatted(label);
-                ImGui.Separator();
-                ImGui.PushItemWidth(-1);
-                string buffer = value.ToString(CultureInfo.InvariantCulture);
-                ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(6, 4));
-                var inputFlags = ImGuiInputTextFlags.EnterReturnsTrue | ImGuiInputTextFlags.AutoSelectAll | ImGuiInputTextFlags.CharsDecimal | ImGuiInputTextFlags.CharsNoBlank;
-                if (ImGui.InputText($"##SliderFillEdit_{label}", ref buffer, 32, inputFlags))
-                {
-                    string parseStr = buffer.Trim();
-                    if (parseStr.EndsWith("%")) parseStr = parseStr.TrimEnd('%');
-                    if (float.TryParse(parseStr, NumberStyles.Float, CultureInfo.InvariantCulture, out float typed))
-                    {
-                        float clamped = Math.Clamp(typed, min, max);
-                        if (Math.Abs(clamped - value) > float.Epsilon)
-                        {
-                            value = clamped;
-                            changed = true;
-                        }
-                    }
-                    ImGui.CloseCurrentPopup();
-                }
-                ImGui.PopStyleVar();
-
-                _sliderEditBuffers[label] = buffer;
-                if (ImGui.IsKeyPressed(ImGuiKey.Escape))
-                {
-                    ImGui.CloseCurrentPopup();
-                }
-                ImGui.PopItemWidth();
-                ImGui.EndPopup();
-            }
-
-            var drawList = ImGui.GetWindowDrawList();
-            Vector2 p0 = ImGui.GetItemRectMin();
-            Vector2 p1 = ImGui.GetItemRectMax();
-
-            drawList.AddRectFilled(p0, p1, ImGui.GetColorU32(ImGuiCol.FrameBg), 4f);
-
-            float fillWidth = ((value - min) / (max - min)) * (p1.X - p0.X);
-            drawList.AddRectFilled(p0, new Vector2(p0.X + fillWidth, p1.Y), ImGui.GetColorU32(ImGuiCol.SliderGrabActive), 4f);
-
-            ImGui.PopStyleVar();
-
-            return changed;
-        }
-
-        public static bool SliderFill(string label, ref int value, int min, int max)
-        {
-            float temp = value;
-            bool changed = SliderFill(label, ref temp, min, max, "");
-            if (changed)
-                value = (int)Math.Round(temp);
-            return changed;
-        }
-        private class PaneGroupState
-        {
-            public string Id = "";
-            public int Count;
-            public float Spacing;
-            public int Index;
-            public float Width;
-            public Vector2? Padding;
-            public ImGuiChildFlags ChildFlags;
-            public ImGuiWindowFlags WindowFlags;
-            public float Height;
-        }
-
-        private static readonly Stack<PaneGroupState> _paneGroups = new();
-        private static readonly Stack<bool> _paneInnerStack = new();
-
-        public static void BeginPaneGroup(string id, int count, float spacing = 12f,
-            Vector2? padding = null,
-            ImGuiChildFlags childFlags = ImGuiChildFlags.None,
-            ImGuiWindowFlags windowFlags = ImGuiWindowFlags.None,
-            float height = 0f)
-        {
-            if (count < 1) count = 1;
-            var avail = ImGui.GetContentRegionAvail();
-            float width = (avail.X - spacing * (count - 1)) / count;
-            _paneGroups.Push(new PaneGroupState
-            {
-                Id = id,
-                Count = count,
-                Spacing = spacing,
-                Index = 0,
-                Width = width,
-                Padding = padding,
-                ChildFlags = childFlags,
-                WindowFlags = windowFlags,
-                Height = height <= 0 ? avail.Y : height
-            });
-        }
-
-        public static bool BeginPane(string localId, bool showHeader = true)
-        {
-            var g = _paneGroups.Peek();
-            if (g.Index > 0)
-                ImGui.SameLine(0, g.Spacing);
-
-            string outerId = $"{g.Id}_{g.Index}_{localId}_OUTER";
-            bool outerOpen = ImGui.BeginChild(outerId, new Vector2(g.Width, g.Height), ImGuiChildFlags.None);
-            if (!outerOpen)
-            {
-                ImGui.EndChild();
-                _paneInnerStack.Push(false);
-                return false;
-            }
-
-            var style = ImGui.GetStyle();
-            float padX = (g.Padding?.X ?? style.WindowPadding.X);
-            float padY = (g.Padding?.Y ?? style.WindowPadding.Y);
-
-            float headerHeight = 0f;
-            if (showHeader)
-            {
-                string headerText = localId;
-                float textHeight = ImGui.GetTextLineHeight();
-                headerHeight = textHeight + style.FramePadding.Y * 2f;
-
-                Vector2 headerMin = ImGui.GetCursorScreenPos();
-
-                Vector2 headerMax = new Vector2(headerMin.X + g.Width, headerMin.Y + headerHeight);
-
-                var drawList = ImGui.GetWindowDrawList();
-                uint bgCol = ImGui.GetColorU32(ImGuiCol.FrameBg);
-                uint borderCol = ImGui.GetColorU32(ImGuiCol.Border);
-                drawList.AddRectFilled(headerMin, headerMax, bgCol, style.ChildRounding);
-                drawList.AddLine(new Vector2(headerMin.X, headerMax.Y - 1), new Vector2(headerMax.X, headerMax.Y - 1), borderCol);
-                drawList.AddRect(headerMin, headerMax, borderCol, style.ChildRounding);
-
-                ImGui.SetCursorPos(new Vector2(padX, style.FramePadding.Y));
-                ImGui.TextUnformatted(headerText);
-            }
-
-            float innerHeight = g.Height - headerHeight;
-            if (innerHeight < 0) innerHeight = 0;
-            ImGui.SetCursorPos(new Vector2(0, headerHeight));
-
-            bool pushedPad = false;
-            if (g.Padding.HasValue)
-            {
-                ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, g.Padding.Value);
-                pushedPad = true;
-            }
-
-            bool innerOpen = ImGui.BeginChild($"{outerId}_INNER", new Vector2(0, innerHeight), ImGuiChildFlags.AlwaysUseWindowPadding);
-            _paneInnerStack.Push(pushedPad);
-            return innerOpen;
-        }
-
-        public static void EndPane()
-        {
-            var g = _paneGroups.Peek();
-            bool hadPad = _paneInnerStack.Pop();
-            ImGui.EndChild(); // inner
-            if (hadPad) ImGui.PopStyleVar();
-            ImGui.EndChild(); // outer
-            g.Index++;
-        }
-
-        public static void EndPaneGroup()
-        {
-            var g = _paneGroups.Pop();
-            g.Index = g.Count;
         }
     }
 }
