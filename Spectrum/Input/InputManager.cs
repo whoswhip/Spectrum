@@ -107,7 +107,7 @@ namespace Spectrum.Input
         {
             if (!mainConfig.Data.TriggerBot)
                 return;
-            if (!IsKeyOrMouseDown(mainConfig.Data.TriggerKey) || mainConfig.Data.TriggerKey == Keys.None)
+            if (!IsKeyOrMouseDown(mainConfig.Data.TriggerKeybind) || mainConfig.Data.TriggerKeybind.Key == Keys.None)
                 return;
 
             var currentPosition = new Point();
@@ -316,6 +316,36 @@ namespace Spectrum.Input
                 }
             }
             return (GetAsyncKeyState((int)key) & 0x8000) != 0; ;
+        }
+
+        private static readonly Dictionary<string, bool> _keybindToggleStates = new();
+
+        public static bool IsKeyOrMouseDown(Keybind keybind)
+        {
+            if (keybind.Type == KeybindType.Always)
+                return true;
+
+            bool isKeyDown = IsKeyOrMouseDown(keybind.Key);
+
+            if (keybind.Type == KeybindType.Hold)
+                return isKeyDown;
+
+            string toggleKey = keybind.Key.ToString();
+            
+            if (!_keybindToggleStates.ContainsKey(toggleKey))
+                _keybindToggleStates[toggleKey] = false;
+
+            if (isKeyDown && !_keybindToggleStates.ContainsKey($"{toggleKey}_pressed"))
+            {
+                _keybindToggleStates[$"{toggleKey}_pressed"] = true;
+                _keybindToggleStates[toggleKey] = !_keybindToggleStates[toggleKey];
+            }
+            else if (!isKeyDown)
+            {
+                _keybindToggleStates.Remove($"{toggleKey}_pressed");
+            }
+
+            return _keybindToggleStates[toggleKey];
         }
 
         private static MakcuMouseButton? MapKeysToMakcuButton(Keys key)
