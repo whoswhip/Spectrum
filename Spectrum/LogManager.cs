@@ -88,7 +88,6 @@ namespace Spectrum
         public static void ClearLog()
         {
             _logEntries.Clear();
-            Log("Log cleared.", LogLevel.Info);
         }
 
         public static void OpenLogFolder()

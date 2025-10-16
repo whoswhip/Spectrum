@@ -25,7 +25,7 @@ namespace Spectrum
             _configDirectory = configDirectory;
             _currentConfigName = Path.GetFileNameWithoutExtension(fileName);
             _data = new T();
-            _availableConfigs = new List<string>();
+            _availableConfigs = [];
             
             if (!Directory.Exists(_configDirectory))
             {
@@ -37,7 +37,7 @@ namespace Spectrum
             LoadConfig();
         }
 
-        public void LoadConfig(bool silent = false, string filename = "")
+        public void LoadConfig(string filename = "")
         {
             if (string.IsNullOrEmpty(filename))
                 filename = _defaultFilename;
@@ -51,7 +51,6 @@ namespace Spectrum
                         var json = File.ReadAllText(filename);
                         _data = JsonConvert.DeserializeObject<T>(json) ?? new T();
                         _currentConfigName = Path.GetFileNameWithoutExtension(filename);
-                        if (!silent) LogManager.Log($"Loaded config {filename}.", LogLevel.Info);
                     }
                     catch
                     {
@@ -83,7 +82,6 @@ namespace Spectrum
             {
                 File.WriteAllText(filename, JsonConvert.SerializeObject(_data, Formatting.Indented));
                 _currentConfigName = Path.GetFileNameWithoutExtension(filename);
-                LogManager.Log($"Saved config to {filename}.", LogLevel.Info);
             }
             catch (Exception ex)
             {
@@ -119,7 +117,7 @@ namespace Spectrum
                 return false;
             }
 
-            LoadConfig(false, filePath);
+            LoadConfig(filePath);
             return true;
         }
 
@@ -165,7 +163,6 @@ namespace Spectrum
                 _directoryWatcher.Changed += OnDirectoryChanged;
                 _directoryWatcher.EnableRaisingEvents = true;
 
-                LogManager.Log($"Directory watcher started for {_configDirectory}.", LogLevel.Info);
             }
             catch (Exception ex)
             {
@@ -185,7 +182,6 @@ namespace Spectrum
             _directoryWatcher.Dispose();
             _directoryWatcher = null;
 
-            LogManager.Log($"Directory watcher stopped for {_configDirectory}.", LogLevel.Info);
         }
 
         private void OnDirectoryChanged(object sender, FileSystemEventArgs e)
@@ -213,7 +209,6 @@ namespace Spectrum
             try
             {
                 File.Delete(filePath);
-                LogManager.Log($"Deleted config {configName}.", LogLevel.Info);
                 return true;
             }
             catch (Exception ex)
@@ -251,7 +246,6 @@ namespace Spectrum
                 File.Move(oldPath, newPath);
                 if (_currentConfigName == oldName)
                     _currentConfigName = newName;
-                LogManager.Log($"Renamed config from {oldName} to {newName}.", LogLevel.Info);
                 return true;
             }
             catch (Exception ex)
@@ -271,7 +265,6 @@ namespace Spectrum
             };
             _fileWatcher.Changed += OnConfigFileChanged;
             _fileWatcher.EnableRaisingEvents = true;
-            LogManager.Log($"File watcher started for {_defaultFilename}.", LogLevel.Info);
         }
 
         public void StopFileWatcher()
@@ -281,7 +274,6 @@ namespace Spectrum
             _fileWatcher.Changed -= OnConfigFileChanged;
             _fileWatcher.Dispose();
             _fileWatcher = null;
-            LogManager.Log($"File watcher stopped for {_defaultFilename}.", LogLevel.Info);
         }
 
         private void OnConfigFileChanged(object sender, FileSystemEventArgs e)
@@ -289,8 +281,7 @@ namespace Spectrum
             Thread.Sleep(100);
             try
             {
-                LoadConfig(true);
-                LogManager.Log($"Configuration reloaded successfully for {_defaultFilename}.", LogLevel.Info);
+                LoadConfig();
             }
             catch (Exception ex)
             {

@@ -216,7 +216,6 @@ namespace Spectrum
                         else
                         {
                             Program.colorConfig.Data.Colors.Add(new ColorInfo(_colorName, _upperHSV, _lowerHSV));
-                            LogManager.Log($"Created new color: {_colorName}", LogManager.LogLevel.Info);
                         }
                         Program.colorConfig.SaveConfig();
                         _colorName = "";

@@ -1,5 +1,4 @@
-﻿using ImGuiNET;
-using OpenCvSharp;
+﻿using OpenCvSharp;
 using Spectrum.Input;
 using System.Diagnostics;
 
@@ -70,12 +69,12 @@ namespace Spectrum.Detection
                             Thread.Sleep(2);
                             continue;
                         }
-                        
+
                         Mat mat = OpenCvSharp.Extensions.BitmapConverter.ToMat(screenshot);
                         screenshot.Dispose();
-                        
+
                         Mat? drawing = (config.AutoLabel || config.CollectData) ? mat.Clone() : null;
-                        
+
                         Cv2.CvtColor(mat, mat, ColorConversionCodes.BGR2HSV);
                         Cv2.InRange(mat, config.LowerHSV, config.UpperHSV, mat);
                         Cv2.Dilate(mat, mat, null, iterations: 2);
@@ -95,7 +94,7 @@ namespace Spectrum.Detection
                             double minDistSquared = double.MaxValue;
                             OpenCvSharp.Point[]? closestContour = null;
                             Rect bestRect = default;
-                            
+
                             bool shouldDrawDetections = config.DrawDetections && renderer != null;
 
                             foreach (var contour in processedContours)
@@ -107,8 +106,8 @@ namespace Spectrum.Detection
 
                                 int absCenterX = centerX + bounds.X;
                                 int absCenterY = centerY + bounds.Y;
-                                
-                                double distSquared = (absCenterX - refX) * (absCenterX - refX) + 
+
+                                double distSquared = (absCenterX - refX) * (absCenterX - refX) +
                                                     (absCenterY - refY) * (absCenterY - refY);
 
                                 if (distSquared < minDistSquared)
@@ -141,14 +140,14 @@ namespace Spectrum.Detection
                                         bestRect.Width,
                                         bestRect.Height
                                     );
-                                    renderer!.AddRect(_rect, config.TargetColor, 2.0f);
+                                    renderer!.AddRect(_rect, config.TargetColor, 1.0f);
                                 }
 
                                 int groupX;
                                 int groupY;
                                 if (config.XPixelOffset)
                                     groupX = bestRect.X + config.XOffsetPixels;
-                                else 
+                                else
                                     groupX = (int)(bestRect.X + bestRect.Width * config.XOffsetPercent);
                                 if (config.YPixelOffset)
                                     groupY = bestRect.Y + config.YOffsetPixels;
@@ -269,7 +268,7 @@ namespace Spectrum.Detection
                 var rect = Cv2.BoundingRect(contours[i]);
                 contourRects.Add((rect, new List<int> { i }));
             }
-            
+
             bool merged;
             do
             {

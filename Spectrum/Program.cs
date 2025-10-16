@@ -28,7 +28,6 @@ namespace Spectrum
                         mainConfig.Data.CaptureMethod = CaptureMethod.GDI;
                     }
                     renderer.Run();
-                    LogManager.Log("Renderer started successfully.", LogManager.LogLevel.Info);
                 }
                 catch (Exception ex)
                 {
@@ -41,10 +40,7 @@ namespace Spectrum
             foreach (var dir in dirs)
             {
                 if (!Directory.Exists(dir))
-                {
                     Directory.CreateDirectory(dir);
-                    LogManager.Log($"Created directory: {dir}", LogManager.LogLevel.Info);
-                }
             }
 
             mainConfig.LoadConfig();
@@ -60,8 +56,8 @@ namespace Spectrum
                 colorConfig.Data.Colors.Add(new ColorInfo("Arsenal [Magenta]", new Scalar(179, 255, 255), new Scalar(150, 255, 255)));
                 colorConfig.Data.Colors.Add(new ColorInfo("Combat Surf [Red]", new Scalar(0, 255, 255), new Scalar(0, 255, 255)));
                 colorConfig.SaveConfig();
-                colorConfig.LoadConfig(true);
-                mainConfig.LoadConfig(true);
+                colorConfig.LoadConfig();
+                mainConfig.LoadConfig();
             }
 
             Thread.Sleep(1000);
