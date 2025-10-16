@@ -2,6 +2,7 @@
 using OpenCvSharp;
 using System.Globalization;
 using System.Numerics;
+using Spectrum.Input;
 
 namespace Spectrum
 {
@@ -198,7 +199,7 @@ namespace Spectrum
             return new Scalar(h, s, v);
         }
 
-        public static bool SliderFill(string label, ref float value, float min, float max, string format = "%.2f")
+        public static bool SliderFill(string label, ref float value, float min, float max, string format = "%.2f", bool enforceRange = true)
         {
             bool changed = false;
 

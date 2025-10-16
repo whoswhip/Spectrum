@@ -35,9 +35,13 @@ namespace Spectrum.Input
         private static double TimeScaleFactor(double baseFactor, double deltaSeconds)
         {
             if (baseFactor <= 0) return 0;
-            if (baseFactor >= 1) return 1;
-            double k = deltaSeconds / _dtRef;
-            return 1 - Math.Pow(1 - baseFactor, k);
+            if (baseFactor >= 1)
+            {
+                double k = deltaSeconds / _dtRef;
+                return baseFactor * k;
+            }
+            double kLow = deltaSeconds / _dtRef;
+            return 1 - Math.Pow(1 - baseFactor, kLow);
         }
 
         public static void MoveMouse()

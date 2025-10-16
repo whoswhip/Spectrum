@@ -88,8 +88,8 @@ namespace Spectrum
                         config.ClosestToMouse = closestToMouse;
 
                     float sensitivity = (float)config.Sensitivity;
-                    if (ImGuiExtensions.SliderFill("Sensitivity", ref sensitivity, 0.1f, 2.0f, "%.1f"))
-                        config.Sensitivity = sensitivity;
+                    if (ImGuiExtensions.SliderFill("Sensitivity", ref sensitivity, 0.1f, 2.0f, "%.1f", false))
+                        config.Sensitivity = Math.Clamp(sensitivity, 0.1, float.MaxValue);
 
                     float EmaSmootheningFactor = (float)config.EmaSmootheningFactor;
                     bool EmaSmoothening = config.EmaSmoothening;
@@ -97,10 +97,15 @@ namespace Spectrum
                         config.EmaSmoothening = EmaSmoothening;
 
                     if (EmaSmoothening)
-                        if (ImGuiExtensions.SliderFill("Ema Smoothening Factor", ref EmaSmootheningFactor, 0.01f, 1.0f))
-                            config.EmaSmootheningFactor = EmaSmootheningFactor;
+                    {
+                        float smoothingPercentage = (float)((1.0 - config.EmaSmootheningFactor) * 100.0);
+                        if (ImGuiExtensions.SliderFill("Ema Smoothening (%)", ref smoothingPercentage, 0f, 99f, "%.0f%%"))
+                        {
+                            config.EmaSmootheningFactor = 1.0 - (smoothingPercentage / 100.0);
+                        }
+                    }
 
-                    ImGui.TextUnformatted("Movement Type");
+                    ImGui.TextUnformatted("Movement Path");
                     ImGui.SetNextItemWidth(-1);
                     MovementType AimPath = config.AimMovementType;
                     if (ImGui.BeginCombo("##Movement Type", AimPath.ToString()))
@@ -115,6 +120,29 @@ namespace Spectrum
                                 ImGui.SetItemDefaultFocus();
                         }
                         ImGui.EndCombo();
+                    }
+
+                    if (AimPath == MovementType.WindMouse)
+                    {
+                        float windMouseGravity = (float)config.WindMouseGravity;
+                        if (ImGuiExtensions.SliderFill("Gravity", ref windMouseGravity, 1.0f, 20.0f, "%.1f"))
+                            config.WindMouseGravity = windMouseGravity;
+
+                        float windMouseWind = (float)config.WindMouseWind;
+                        if (ImGuiExtensions.SliderFill("Wind", ref windMouseWind, 0.5f, 10.0f, "%.1f"))
+                            config.WindMouseWind = windMouseWind;
+
+                        float windMouseMaxStep = (float)config.WindMouseMaxStep;
+                        if (ImGuiExtensions.SliderFill("Max Step", ref windMouseMaxStep, 1.0f, 50.0f, "%.1f"))
+                            config.WindMouseMaxStep = windMouseMaxStep;
+
+                        float windMouseTargetArea = (float)config.WindMouseTargetArea;
+                        if (ImGuiExtensions.SliderFill("Target Area", ref windMouseTargetArea, 1.0f, 20.0f, "%.1f"))
+                            config.WindMouseTargetArea = windMouseTargetArea;
+
+                        bool preventOvershoot = config.WindMousePreventOvershoot;
+                        if (ImGui.Checkbox("Prevent Overshoot", ref preventOvershoot))
+                            config.WindMousePreventOvershoot = preventOvershoot;
                     }
 
                     bool YPixelOffset = config.YPixelOffset;
@@ -308,11 +336,11 @@ namespace Spectrum
                     ImGuiExtensions.EndPane();
                 }
 
-                if (ImGuiExtensions.BeginPane("Detection Configs"))
+                if (ImGuiExtensions.BeginPane("Color Configs"))
                 {
                     List<ColorInfo> colors = colorConfig.Data.Colors;
                     ImGui.PushStyleColor(ImGuiCol.ChildBg, new Vector4(0.110f, 0.110f, 0.125f, 1.000f));
-                    ImGui.BeginChild("##DetectionConfigsChild", new Vector2(0, ImGui.GetContentRegionAvail().Y / 2), ImGuiChildFlags.None);
+                    ImGui.BeginChild("##DColorConfigsChild", new Vector2(0, ImGui.GetContentRegionAvail().Y / 2), ImGuiChildFlags.None);
                     ImGui.Dummy(new Vector2(0, 4));
                     foreach (var color in colors)
                     {
@@ -735,7 +763,7 @@ namespace Spectrum
             List<Action<ImDrawListPtr>> _drawCommands;
             lock (detectionDrawLock)
             {
-                _drawCommands = activeDrawCommands.ToList();
+                _drawCommands = [.. activeDrawCommands];
             }
 
             foreach (var cmd in _drawCommands)
