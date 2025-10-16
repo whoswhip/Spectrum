@@ -330,6 +330,12 @@ namespace Spectrum
         GDI,
         DirectX
     }
+    public enum KeybindType
+    {
+        Hold,
+        Toggle,
+        Always
+    }
     #endregion
     public class ConfigData
     {
@@ -353,7 +359,7 @@ namespace Spectrum
         #region Aim Settings
         public bool EnableAim { get; set; } = true;
         public bool ClosestToMouse { get; set; } = true;
-        public Keys Keybind { get; set; } = Keys.XButton2;
+        public Keybind Keybind = new(Keys.XButton2, KeybindType.Hold);
         public double Sensitivity { get; set; } = 0.5;
         public MovementType AimMovementType { get; set; } = MovementType.Adaptive;
         public bool EmaSmoothening { get; set; } = true;
@@ -364,7 +370,7 @@ namespace Spectrum
 
         #region Trigger Settings
         public bool TriggerBot { get; set; } = false;
-        public Keys TriggerKey { get; set; } = Keys.XButton2;
+        public Keybind TriggerKeybind = new(Keys.XButton1, KeybindType.Hold);
         public int TriggerDelay { get; set; } = 50; // milliseconds
         public int TriggerFov { get; set; } = 15; // pixels
         public int TriggerDuration { get; set; } = 100; // milliseconds
@@ -412,5 +418,16 @@ namespace Spectrum
         public string Name { get; set; } = name;
         public Scalar Upper { get; set; } = upper;
         public Scalar Lower { get; set; } = lower;
+    }
+    public class Keybind
+    {
+        public Keys Key { get; set; }
+
+        public KeybindType Type { get; set; }
+        public Keybind(Keys key, KeybindType type)
+        {
+            Key = key;
+            Type = type;
+        }
     }
 }

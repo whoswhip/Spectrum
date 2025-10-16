@@ -81,31 +81,7 @@ namespace Spectrum
 
                     ImGui.SameLine();
                     ImGui.TextUnformatted("Enable Aiming");
-
-                    ImGui.SameLine(ImGui.GetContentRegionAvail().X - ImGui.CalcTextSize(_waitingForKeybind.GetValueOrDefault("Aiming") ? "Listening..." : config.Keybind.ToString()).X);
-                    if (!_waitingForKeybind.GetValueOrDefault("Aiming", false))
-                    {
-                        if (ImGui.Button($"{config.Keybind.ToString()}###AimKeybind"))
-                        {
-                            _waitingForKeybind["Aiming"] = true;
-                            _pendingKeybind["Aiming"] = Keys.None;
-                            _keybindTask["Aiming"] = Task.Run(async () =>
-                            {
-                                var key = await InputManager.ListenForNextKeyOrMouseAsync();
-                                _pendingKeybind["Aiming"] = key;
-                            });
-                        }
-                    }
-                    else
-                    {
-                        ImGui.Button("Listening... ###AimListening");
-                        if (_pendingKeybind.GetValueOrDefault("Aiming", Keys.None) != Keys.None)
-                        {
-                            config.Keybind = _pendingKeybind["Aiming"];
-                            _pendingKeybind["Aiming"] = Keys.None;
-                            _waitingForKeybind["Aiming"] = false;
-                        }
-                    }
+                    ImGuiExtensions.KeybindInput("Aim Keybind", ref config.Keybind, true);
 
                     bool closestToMouse = config.ClosestToMouse;
                     if (ImGui.Checkbox(" Closest to Mouse", ref closestToMouse))
@@ -249,30 +225,7 @@ namespace Spectrum
                     bool triggerBot = config.TriggerBot;
                     if (ImGui.Checkbox(" Enabled", ref triggerBot))
                         config.TriggerBot = triggerBot;
-                    ImGui.SameLine(ImGui.GetContentRegionAvail().X - ImGui.CalcTextSize(_waitingForKeybind.GetValueOrDefault("Trigger Key") ? "Listening..." : config.TriggerKey.ToString()).X);
-                    if (!_waitingForKeybind.GetValueOrDefault("Trigger Key", false))
-                    {
-                        if (ImGui.Button($"{config.TriggerKey}###TriggerKeybind"))
-                        {
-                            _waitingForKeybind["Trigger Key"] = true;
-                            _pendingKeybind["Trigger Key"] = Keys.None;
-                            _keybindTask["Trigger Key"] = Task.Run(async () =>
-                            {
-                                var key = await InputManager.ListenForNextKeyOrMouseAsync();
-                                _pendingKeybind["Trigger Key"] = key;
-                            });
-                        }
-                    }
-                    else
-                    {
-                        ImGui.Button("Listening... ###TriggerListening");
-                        if (_pendingKeybind.GetValueOrDefault("Trigger Key", Keys.None) != Keys.None)
-                        {
-                            config.TriggerKey = _pendingKeybind["Trigger Key"];
-                            _pendingKeybind["Trigger Key"] = Keys.None;
-                            _waitingForKeybind["Trigger Key"] = false;
-                        }
-                    }
+                    ImGuiExtensions.KeybindInput("Trigger Keybind", ref config.TriggerKeybind, true);
 
                     if (triggerBot)
                     {

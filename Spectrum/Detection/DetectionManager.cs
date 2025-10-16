@@ -40,7 +40,7 @@ namespace Spectrum.Detection
             {
                 try
                 {
-                    if (InputManager.IsKeyOrMouseDown(mainConfig.Data.Keybind) || InputManager.IsKeyOrMouseDown(mainConfig.Data.TriggerKey))
+                    if (InputManager.IsKeyOrMouseDown(mainConfig.Data.Keybind) || InputManager.IsKeyOrMouseDown(mainConfig.Data.TriggerKeybind))
                     {
                         var config = mainConfig.Data;
                         if (config.DebugMode)
@@ -195,7 +195,7 @@ namespace Spectrum.Detection
                         {
                             AutoLabeling.AddBackgroundImage(drawing, false);
                         }
-                        
+
                         renderer?.CommitDetectionDrawCommands();
 
                         mat.Dispose();
@@ -231,7 +231,13 @@ namespace Spectrum.Detection
                             }
                         }
                     }
-                    else if (InputManager.IsKeyOrMouseDown(mainConfig.Data.MenuKey))
+                    else
+                    {
+                        renderer?.ClearDetectionDrawCommands();
+                        renderer?.CommitDetectionDrawCommands();
+                        Thread.Sleep(5);
+                    }
+                    if (InputManager.IsKeyOrMouseDown(mainConfig.Data.MenuKey))
                     {
                         var now = DateTime.Now;
                         if ((now - lastMenuToggle).TotalMilliseconds > 175)
@@ -239,12 +245,6 @@ namespace Spectrum.Detection
                             mainConfig.Data.ShowMenu = !mainConfig.Data.ShowMenu;
                             lastMenuToggle = now;
                         }
-                    }
-                    else
-                    {
-                        renderer?.ClearDetectionDrawCommands();
-                        renderer?.CommitDetectionDrawCommands();
-                        Thread.Sleep(5);
                     }
                 }
                 catch (Exception ex)

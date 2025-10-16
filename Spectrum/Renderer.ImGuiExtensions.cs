@@ -313,7 +313,11 @@ namespace Spectrum
                     if (parseStr.EndsWith("%")) parseStr = parseStr.TrimEnd('%');
                     if (float.TryParse(parseStr, NumberStyles.Float, CultureInfo.InvariantCulture, out float typed))
                     {
-                        float clamped = Math.Clamp(typed, min, max);
+                        float clamped;
+                        if (enforceRange)
+                            clamped = Math.Clamp(typed, min, max);
+                        else
+                            clamped = typed;
                         if (Math.Abs(clamped - value) > float.Epsilon)
                         {
                             value = clamped;
@@ -340,6 +344,7 @@ namespace Spectrum
             drawList.AddRectFilled(p0, p1, ImGui.GetColorU32(ImGuiCol.FrameBg), 4f);
 
             float fillWidth = ((value - min) / (max - min)) * (p1.X - p0.X);
+            fillWidth = Math.Clamp(fillWidth, 0f, p1.X - p0.X);
             drawList.AddRectFilled(p0, new Vector2(p0.X + fillWidth, p1.Y), ImGui.GetColorU32(ImGuiCol.SliderGrabActive), 4f);
 
             ImGui.PopStyleVar();
@@ -465,6 +470,79 @@ namespace Spectrum
         {
             var g = _paneGroups.Pop();
             g.Index = g.Count;
+        }
+
+        private static readonly Dictionary<string, bool> _keybindListening = [];
+        private static readonly Dictionary<string, Keys> _keybindPending = [];
+        private static readonly Dictionary<string, Task?> _keybindTasks = [];
+
+        public static bool KeybindInput(string label, ref Keybind keybind, bool inline = false)
+        {
+            bool changed = false;
+            ImGui.PushID(label);
+
+            if (!inline)
+                ImGui.TextUnformatted(label);
+
+            string buttonText = _keybindListening.GetValueOrDefault(label) 
+                ? "Listening..." 
+                : keybind.Key.ToString();
+
+            ImGui.SameLine(ImGui.GetContentRegionAvail().X - ImGui.CalcTextSize(buttonText).X);
+
+            if (!_keybindListening.GetValueOrDefault(label, false))
+            {
+                if (ImGui.Button($"{buttonText}###{label}_Button"))
+                {
+                    _keybindListening[label] = true;
+                    _keybindPending[label] = Keys.None;
+                    _keybindTasks[label] = Task.Run(async () =>
+                    {
+                        var key = await InputManager.ListenForNextKeyOrMouseAsync();
+                        _keybindPending[label] = key;
+                    });
+                }
+
+                if (ImGui.BeginPopupContextItem($"###{label}_Context"))
+                {
+                    bool isHold = keybind.Type == KeybindType.Hold;
+                    if (ImGui.MenuItem("Hold", null, isHold))
+                    {
+                        keybind.Type = KeybindType.Hold;
+                        changed = true;
+                    }
+
+                    bool isToggle = keybind.Type == KeybindType.Toggle;
+                    if (ImGui.MenuItem("Toggle", null, isToggle))
+                    {
+                        keybind.Type = KeybindType.Toggle;
+                        changed = true;
+                    }
+
+                    bool isAlways = keybind.Type == KeybindType.Always;
+                    if (ImGui.MenuItem("Always", null, isAlways))
+                    {
+                        keybind.Type = KeybindType.Always;
+                        changed = true;
+                    }
+
+                    ImGui.EndPopup();
+                }
+            }
+            else
+            {
+                ImGui.Button($"{buttonText}###{label}_Listening");
+                if (_keybindPending.GetValueOrDefault(label, Keys.None) != Keys.None)
+                {
+                    keybind.Key = _keybindPending[label];
+                    _keybindPending[label] = Keys.None;
+                    _keybindListening[label] = false;
+                    changed = true;
+                }
+            }
+
+            ImGui.PopID();
+            return changed;
         }
     }
 }
