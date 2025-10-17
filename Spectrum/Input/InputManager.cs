@@ -78,7 +78,6 @@ namespace Spectrum.Input
                     config.WindMouseGravity,
                     config.WindMouseWind,
                     config.WindMouseMaxStep,
-                    config.WindMouseTargetArea,
                     effSensitivity,
                     config.WindMouseOvershoot,
                     insideBoundingBox),

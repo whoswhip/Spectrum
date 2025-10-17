@@ -362,7 +362,6 @@ namespace Spectrum
         public double WindMouseGravity { get; set; } = 9.0;
         public double WindMouseWind { get; set; } = 3.0;
         public double WindMouseMaxStep { get; set; } = 10.0;
-        public double WindMouseTargetArea { get; set; } = 5.0;
         public bool WindMouseOvershoot { get; set; } = false;
         #endregion
 

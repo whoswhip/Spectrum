@@ -57,7 +57,7 @@ namespace Spectrum
                 while (true)
                 {
                     double distance = Math.Sqrt(Math.Pow(_previewEndPoint.X - current.X, 2) + Math.Pow(_previewEndPoint.Y - current.Y, 2));
-                    if (distance < config.WindMouseTargetArea || steps++ >= maxSteps)
+                    if (steps++ >= maxSteps)
                         break;
                     bool isInBox = boundingBox.Contains(current);
                     Point nextPoint = config.AimMovementType switch
@@ -71,7 +71,6 @@ namespace Spectrum
                             config.WindMouseGravity,
                             config.WindMouseWind,
                             config.WindMouseMaxStep,
-                            config.WindMouseTargetArea,
                             config.Sensitivity,
                             config.WindMouseOvershoot,
                             isInBox),
@@ -161,7 +160,7 @@ namespace Spectrum
                 {
                     _previewStartPoint = new Point((int)localMousePos.X, (int)localMousePos.Y);
                 }
-                else
+                else 
                 {
                     _previewEndPoint = new Point((int)localMousePos.X, (int)localMousePos.Y);
                 }

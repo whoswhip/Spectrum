@@ -1,5 +1,4 @@
-﻿
-namespace Spectrum.Input
+﻿namespace Spectrum.Input
 {
     public class MovementPaths
     {
@@ -158,148 +157,76 @@ namespace Spectrum.Input
         }
 
         public static Point WindMouse(Point start, Point end, double gravity = 9.0, double wind = 3.0,
-            double maxStep = 10.0, double targetArea = 5.0, double sensitivity = 1.0, bool enableOvershoot = false, bool insideBoundingBox = false)
+            double maxStep = 10.0, double sensitivity = 1.0, bool enableOvershoot = false, bool insideBoundingBox = false)
         {
             double dx = end.X - start.X;
             double dy = end.Y - start.Y;
-            double distance = Math.Sqrt(dx * dx + dy * dy);
+            double d = Math.Sqrt(dx * dx + dy * dy);
+            if (d <= 0) return start;
+            double inv = 1.0 / d;
+            double dirX = dx * inv;
+            double dirY = dy * inv;
 
             if (insideBoundingBox)
             {
-                double trackingSpeed = Math.Min(distance * 0.35, maxStep * sensitivity * 0.6);
-
-                double dirX = distance > 0 ? dx / distance : 0;
-                double dirY = distance > 0 ? dy / distance : 0;
-
-                double humanVariation = Math.Sin(_perlinTime * 1.2) * 0.4 + Math.Cos(_perlinTime * 0.8) * 0.25;
+                double s = Math.Min(d * 0.35, maxStep * sensitivity * 0.6);
                 _perlinTime += 0.03;
-
-                double smoothX = dirX * trackingSpeed + humanVariation;
-                double smoothY = dirY * trackingSpeed + humanVariation * 0.7;
-
-                int trackX = (int)Math.Round(start.X + smoothX);
-                int trackY = (int)Math.Round(start.Y + smoothY);
-
+                double n = Math.Sin(_perlinTime * 1.1) * 0.3 + Math.Cos(_perlinTime * 0.9) * 0.2;
+                int x = (int)Math.Round(start.X + dirX * s + n);
+                int y = (int)Math.Round(start.Y + dirY * s + n * 0.7);
                 _windX *= 0.15;
                 _windY *= 0.15;
                 _velocityX *= 0.3;
                 _velocityY *= 0.3;
-
-                Point trackResult = new Point(trackX, trackY);
-                _lastMove = trackResult;
-                return trackResult;
+                return _lastMove = new Point(x, y);
             }
 
-            if (distance <= targetArea)
+            double distScale = Math.Min(d / 100.0, 3.0);
+            double sens = Math.Max(0.1, sensitivity);
+            double dyn = maxStep * sens * (1.0 + distScale);
+            double g = gravity * (1.0 + distScale * 0.3) * sens * (enableOvershoot ? 1.15 : 1.0);
+            double prox = insideBoundingBox ? 0.0 : 1.0;
+            double w = wind * Math.Pow(prox, 4.0) * (enableOvershoot ? 1.2 : 1.0);
+
+            if (insideBoundingBox)
             {
-                double trackingSpeed = Math.Min(distance * 0.6, maxStep * sensitivity * 0.5);
-
-                double dirX = dx / distance;
-                double dirY = dy / distance;
-
-                double microAdjustment = Math.Sin(_perlinTime * 2.0) * 0.3;
-                _perlinTime += 0.05;
-
-                int trackX = (int)Math.Round(start.X + dirX * trackingSpeed + microAdjustment);
-                int trackY = (int)Math.Round(start.Y + dirY * trackingSpeed + microAdjustment);
-
-                _windX *= 0.3;
-                _windY *= 0.3;
-                _velocityX *= 0.5;
-                _velocityY *= 0.5;
-
-                Point trackResult = new Point(trackX, trackY);
-                _lastMove = trackResult;
-                return trackResult;
+                double damp = 0.25;
+                _velocityX *= damp;
+                _velocityY *= damp;
+                double wd = Math.Pow(damp, 4.0);
+                _windX *= wd;
+                _windY *= wd;
             }
 
-            if (distance <= targetArea * 2.5)
+            _windX = _windX / Math.Sqrt(3) + (Random.Shared.NextDouble() * 2 - 1) * w;
+            _windY = _windY / Math.Sqrt(3) + (Random.Shared.NextDouble() * 2 - 1) * w;
+
+            _velocityX += _windX + g * dirX;
+            _velocityY += _windY + g * dirY;
+
+            double vm = Math.Sqrt(_velocityX * _velocityX + _velocityY * _velocityY);
+            if (vm > dyn)
             {
-                double trackingSpeed = Math.Min(distance * 0.5, maxStep * sensitivity * 0.7);
-
-                double dirX = dx / distance;
-                double dirY = dy / distance;
-
-                double smoothNoise = Math.Sin(_perlinTime * 1.5) * (distance / targetArea) * 0.5;
-                _perlinTime += 0.08;
-
-                double blendFactor = (distance - targetArea) / (targetArea * 1.5);
-
-                _velocityX = _velocityX * blendFactor * 0.5 + dirX * trackingSpeed * gravity * 0.1;
-                _velocityY = _velocityY * blendFactor * 0.5 + dirY * trackingSpeed * gravity * 0.1;
-
-                _windX *= blendFactor * 0.4;
-                _windY *= blendFactor * 0.4;
-
-                int trackX = (int)Math.Round(start.X + dirX * trackingSpeed + smoothNoise);
-                int trackY = (int)Math.Round(start.Y + dirY * trackingSpeed + smoothNoise);
-
-                Point trackResult = new Point(trackX, trackY);
-                _lastMove = trackResult;
-                return trackResult;
+                double r = dyn / vm;
+                _velocityX *= r;
+                _velocityY *= r;
+                vm = dyn;
             }
 
-            double sensitivityMultiplier = Math.Max(0.1, sensitivity);
-            double distanceScale = Math.Min(distance / 100.0, 3.0);
-            double dynamicMaxStep = maxStep * sensitivityMultiplier * (1.0 + distanceScale);
-
-            double proximityThreshold = Math.Max(targetArea * 10, 50);
-            double proximityFactor = Math.Min(distance / proximityThreshold, 1.0);
-
-            double windReduction = Math.Pow(proximityFactor, 4.0);
-            double effectiveWind = wind * windReduction;
-            double effectiveGravity = gravity * (1.0 + distanceScale * 0.3) * sensitivityMultiplier;
-
-            if (enableOvershoot)
+            if (!enableOvershoot && insideBoundingBox)
             {
-                effectiveGravity *= 1.15;
-                effectiveWind *= 1.2;
-            }
-
-            if (distance < proximityThreshold)
-            {
-                double dampingFactor = (distance / proximityThreshold);
-                dampingFactor = Math.Pow(dampingFactor, 2.0);
-                _velocityX *= dampingFactor;
-                _velocityY *= dampingFactor;
-
-                double windDamping = Math.Pow(dampingFactor, 4.0);
-                _windX *= windDamping;
-                _windY *= windDamping;
-            }
-
-            _windX = _windX / Math.Sqrt(3) + (Random.Shared.NextDouble() * 2 - 1) * effectiveWind;
-            _windY = _windY / Math.Sqrt(3) + (Random.Shared.NextDouble() * 2 - 1) * effectiveWind;
-
-            _velocityX += _windX + effectiveGravity * dx / distance;
-            _velocityY += _windY + effectiveGravity * dy / distance;
-
-            double velocityMag = Math.Sqrt(_velocityX * _velocityX + _velocityY * _velocityY);
-            if (velocityMag > dynamicMaxStep)
-            {
-                double ratio = dynamicMaxStep / velocityMag;
-                _velocityX *= ratio;
-                _velocityY *= ratio;
-                velocityMag = dynamicMaxStep;
-            }
-
-            if (!enableOvershoot && distance < targetArea * 4)
-            {
-                double maxAllowedVelocity = distance * 0.4;
-                if (velocityMag > maxAllowedVelocity && velocityMag > 0)
+                double limit = d * 0.4;
+                if (vm > limit && vm > 0)
                 {
-                    double limitRatio = maxAllowedVelocity / velocityMag;
-                    _velocityX *= limitRatio;
-                    _velocityY *= limitRatio;
+                    double r = limit / vm;
+                    _velocityX *= r;
+                    _velocityY *= r;
                 }
             }
 
-            int nextX = (int)Math.Round(start.X + _velocityX);
-            int nextY = (int)Math.Round(start.Y + _velocityY);
-
-            Point result = new Point(nextX, nextY);
-            _lastMove = result;
-            return result;
+            int nx = (int)Math.Round(start.X + _velocityX);
+            int ny = (int)Math.Round(start.Y + _velocityY);
+            return _lastMove = new Point(nx, ny);
         }
 
         public static void ResetWindMouse()

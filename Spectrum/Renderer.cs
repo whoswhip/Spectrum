@@ -139,10 +139,6 @@ namespace Spectrum
                         if (ImGuiExtensions.SliderFill("Max Step", ref windMouseMaxStep, 1.0f, 50.0f, "%.1f"))
                             config.WindMouseMaxStep = windMouseMaxStep;
 
-                        float windMouseTargetArea = (float)config.WindMouseTargetArea;
-                        if (ImGuiExtensions.SliderFill("Target Area", ref windMouseTargetArea, 1.0f, 20.0f, "%.1f"))
-                            config.WindMouseTargetArea = windMouseTargetArea;
-
                         bool enableOvershoot = config.WindMouseOvershoot;
                         if (ImGui.Checkbox("Enable Overshoot", ref enableOvershoot))
                             config.WindMouseOvershoot = enableOvershoot;
@@ -702,7 +698,7 @@ namespace Spectrum
                     ImGui.Dummy(new Vector2(0, 1));
 
                     if (ImGui.Button("Save Logs"))
-                        LogManager.SaveLog($"bin\\logs\\{DateTime.Now.ToString("MM-dd_HH-mm-ss")}_spectrum_log.txt");
+                        LogManager.SaveLog($"bin\\logs\\{DateTime.Now:MM-dd_HH-mm-ss}_spectrum_log.txt");
 
                     ImGui.SameLine();
 
@@ -773,7 +769,7 @@ namespace Spectrum
 
             ImGui.End();
         }
-        private void AddStyling()
+        private static void AddStyling()
         {
             var style = ImGui.GetStyle();
             var colors = style.Colors;
