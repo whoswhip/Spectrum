@@ -1,6 +1,6 @@
 # Spectrum
 Spectrum is a semi-universal colorbot that uses C# and OpenCV for image processing.
-<img width="600" height="502" alt="Spectrum Menu" src="https://upld.zip/d9Z8Evjm.png" />
+<img width="700" height="603" alt="Spectrum Menu" src="https://upld.zip/PYRXWN5Y.png" />
 ## Features
 - Extensive configuration file
 - Dataset collection
