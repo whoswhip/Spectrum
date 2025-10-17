@@ -315,12 +315,9 @@ namespace Spectrum.Input
         {
             int[] perm = new int[256];
             for (int i = 0; i < 256; i++) perm[i] = i;
-            string user = Environment.UserName;
-            int seed = Environment.TickCount + user.GetHashCode();
-            Random rand = new(seed);
             for (int i = 255; i > 0; i--)
             {
-                int j = rand.Next(i + 1);
+                int j = Random.Shared.Next(i + 1);
                 (perm[i], perm[j]) = (perm[j], perm[i]);
             }
             return perm;
