@@ -859,7 +859,7 @@ namespace Spectrum
         {
             lock (detectionDrawLock)
             {
-                detectionDrawCommands.Add(drawList => drawList.AddRect(new Vector2(rect.Left, rect.Top), new Vector2(rect.Right, rect.Bottom), ColorFromVector4(color), 0, 0, thickness));
+                detectionDrawCommands.Add(drawList => drawList.AddRect(new Vector2(rect.Left, rect.Top), new Vector2(rect.Right, rect.Bottom), ImGui.GetColorU32(color), 0, 0, thickness));
             }
         }
 
@@ -867,7 +867,7 @@ namespace Spectrum
         {
             lock (detectionDrawLock)
             {
-                detectionDrawCommands.Add(drawList => drawList.AddLine(p1, p2, ColorFromVector4(color), thickness));
+                detectionDrawCommands.Add(drawList => drawList.AddLine(p1, p2, ImGui.GetColorU32(color), thickness));
             }
         }
 
@@ -878,7 +878,7 @@ namespace Spectrum
 
             lock (detectionDrawLock)
             {
-                detectionDrawCommands.Add(drawList => drawList.AddCircle(center, radius, ColorFromVector4(color), numSegments, thickness));
+                detectionDrawCommands.Add(drawList => drawList.AddCircle(center, radius, ImGui.GetColorU32(color), numSegments, thickness));
             }
         }
 
@@ -888,7 +888,7 @@ namespace Spectrum
                 return;
             lock (detectionDrawLock)
             {
-                detectionDrawCommands.Add(drawList => drawList.AddText(ImGui.GetFont(), fontSize, pos, ColorFromVector4(color), text));
+                detectionDrawCommands.Add(drawList => drawList.AddText(ImGui.GetFont(), fontSize, pos, ImGui.GetColorU32(color), text));
             }
         }
 
@@ -914,15 +914,6 @@ namespace Spectrum
             if (string.IsNullOrEmpty(text))
                 return new Vector2(0, 0);
             return ImGui.CalcTextSize(text, 0, text.Length, fontSize);
-        }
-
-        private static uint ColorFromVector4(Vector4 color)
-        {
-            int r = (int)(Math.Clamp(color.X, 0f, 1f) * 255.0f);
-            int g = (int)(Math.Clamp(color.Y, 0f, 1f) * 255.0f);
-            int b = (int)(Math.Clamp(color.Z, 0f, 1f) * 255.0f);
-            int a = (int)(Math.Clamp(color.W, 0f, 1f) * 255.0f);
-            return (uint)((a << 24) | (b << 16) | (g << 8) | r);
         }
     }
 }
