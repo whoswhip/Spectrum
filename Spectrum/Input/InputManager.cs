@@ -74,11 +74,11 @@ namespace Spectrum.Input
                 MovementType.Adaptive => MovementPaths.AdaptiveMovement(start, end, effSensitivity),
                 MovementType.QuadraticBezier => MovementPaths.CurvedMovement(start, end, effSensitivity),
                 MovementType.PerlinNoise => MovementPaths.PerlinNoiseMovement(start, end, effSensitivity),
-                MovementType.WindMouse => MovementPaths.WindMouse(start, end, 
-                    config.WindMouseGravity, 
-                    config.WindMouseWind, 
-                    config.WindMouseMaxStep, 
-                    config.WindMouseTargetArea, 
+                MovementType.WindMouse => MovementPaths.WindMouse(start, end,
+                    config.WindMouseGravity,
+                    config.WindMouseWind,
+                    config.WindMouseMaxStep,
+                    config.WindMouseTargetArea,
                     effSensitivity,
                     config.WindMouseOvershoot,
                     insideBoundingBox),
@@ -353,7 +353,7 @@ namespace Spectrum.Input
                 return isKeyDown;
 
             string toggleKey = keybind.Key.ToString();
-            
+
             if (!_keybindToggleStates.ContainsKey(toggleKey))
                 _keybindToggleStates[toggleKey] = false;
 

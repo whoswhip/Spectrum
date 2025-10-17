@@ -1,8 +1,8 @@
 ﻿using ImGuiNET;
 using OpenCvSharp;
+using Spectrum.Input;
 using System.Globalization;
 using System.Numerics;
-using Spectrum.Input;
 
 namespace Spectrum
 {
@@ -485,8 +485,8 @@ namespace Spectrum
             if (!inline)
                 ImGui.TextUnformatted(label);
 
-            string buttonText = _keybindListening.GetValueOrDefault(label) 
-                ? "Listening..." 
+            string buttonText = _keybindListening.GetValueOrDefault(label)
+                ? "Listening..."
                 : keybind.Key.ToString();
 
             ImGui.SameLine(ImGui.GetContentRegionAvail().X - ImGui.CalcTextSize(buttonText).X);

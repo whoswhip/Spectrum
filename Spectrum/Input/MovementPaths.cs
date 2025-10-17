@@ -7,7 +7,7 @@ namespace Spectrum.Input
         private static readonly int[] _permutation = GeneratePermutation();
         private static readonly int[] _p;
         private static double _perlinTime = 0.0;
-        
+
         private static Point _lastMove = new Point(0, 0);
         private static double _windX = 0.0;
         private static double _windY = 0.0;
@@ -157,57 +157,57 @@ namespace Spectrum.Input
             return new Point(x, y);
         }
 
-        public static Point WindMouse(Point start, Point end, double gravity = 9.0, double wind = 3.0, 
+        public static Point WindMouse(Point start, Point end, double gravity = 9.0, double wind = 3.0,
             double maxStep = 10.0, double targetArea = 5.0, double sensitivity = 1.0, bool enableOvershoot = false, bool insideBoundingBox = false)
         {
             double dx = end.X - start.X;
             double dy = end.Y - start.Y;
             double distance = Math.Sqrt(dx * dx + dy * dy);
-            
+
             if (insideBoundingBox)
             {
                 double trackingSpeed = Math.Min(distance * 0.35, maxStep * sensitivity * 0.6);
-                
+
                 double dirX = distance > 0 ? dx / distance : 0;
                 double dirY = distance > 0 ? dy / distance : 0;
-                
+
                 double humanVariation = Math.Sin(_perlinTime * 1.2) * 0.4 + Math.Cos(_perlinTime * 0.8) * 0.25;
                 _perlinTime += 0.03;
-                
+
                 double smoothX = dirX * trackingSpeed + humanVariation;
                 double smoothY = dirY * trackingSpeed + humanVariation * 0.7;
-                
+
                 int trackX = (int)Math.Round(start.X + smoothX);
                 int trackY = (int)Math.Round(start.Y + smoothY);
-                
+
                 _windX *= 0.15;
                 _windY *= 0.15;
                 _velocityX *= 0.3;
                 _velocityY *= 0.3;
-                
+
                 Point trackResult = new Point(trackX, trackY);
                 _lastMove = trackResult;
                 return trackResult;
             }
-            
+
             if (distance <= targetArea)
             {
                 double trackingSpeed = Math.Min(distance * 0.6, maxStep * sensitivity * 0.5);
-                
+
                 double dirX = dx / distance;
                 double dirY = dy / distance;
-                
+
                 double microAdjustment = Math.Sin(_perlinTime * 2.0) * 0.3;
                 _perlinTime += 0.05;
-                
+
                 int trackX = (int)Math.Round(start.X + dirX * trackingSpeed + microAdjustment);
                 int trackY = (int)Math.Round(start.Y + dirY * trackingSpeed + microAdjustment);
-                
+
                 _windX *= 0.3;
                 _windY *= 0.3;
                 _velocityX *= 0.5;
                 _velocityY *= 0.5;
-                
+
                 Point trackResult = new Point(trackX, trackY);
                 _lastMove = trackResult;
                 return trackResult;
@@ -216,24 +216,24 @@ namespace Spectrum.Input
             if (distance <= targetArea * 2.5)
             {
                 double trackingSpeed = Math.Min(distance * 0.5, maxStep * sensitivity * 0.7);
-                
+
                 double dirX = dx / distance;
                 double dirY = dy / distance;
-                
+
                 double smoothNoise = Math.Sin(_perlinTime * 1.5) * (distance / targetArea) * 0.5;
                 _perlinTime += 0.08;
-                
+
                 double blendFactor = (distance - targetArea) / (targetArea * 1.5);
-                
+
                 _velocityX = _velocityX * blendFactor * 0.5 + dirX * trackingSpeed * gravity * 0.1;
                 _velocityY = _velocityY * blendFactor * 0.5 + dirY * trackingSpeed * gravity * 0.1;
-                
+
                 _windX *= blendFactor * 0.4;
                 _windY *= blendFactor * 0.4;
-                
+
                 int trackX = (int)Math.Round(start.X + dirX * trackingSpeed + smoothNoise);
                 int trackY = (int)Math.Round(start.Y + dirY * trackingSpeed + smoothNoise);
-                
+
                 Point trackResult = new Point(trackX, trackY);
                 _lastMove = trackResult;
                 return trackResult;
@@ -242,10 +242,10 @@ namespace Spectrum.Input
             double sensitivityMultiplier = Math.Max(0.1, sensitivity);
             double distanceScale = Math.Min(distance / 100.0, 3.0);
             double dynamicMaxStep = maxStep * sensitivityMultiplier * (1.0 + distanceScale);
-            
+
             double proximityThreshold = Math.Max(targetArea * 10, 50);
             double proximityFactor = Math.Min(distance / proximityThreshold, 1.0);
-            
+
             double windReduction = Math.Pow(proximityFactor, 4.0);
             double effectiveWind = wind * windReduction;
             double effectiveGravity = gravity * (1.0 + distanceScale * 0.3) * sensitivityMultiplier;
@@ -262,7 +262,7 @@ namespace Spectrum.Input
                 dampingFactor = Math.Pow(dampingFactor, 2.0);
                 _velocityX *= dampingFactor;
                 _velocityY *= dampingFactor;
-                
+
                 double windDamping = Math.Pow(dampingFactor, 4.0);
                 _windX *= windDamping;
                 _windY *= windDamping;
@@ -296,7 +296,7 @@ namespace Spectrum.Input
 
             int nextX = (int)Math.Round(start.X + _velocityX);
             int nextY = (int)Math.Round(start.Y + _velocityY);
-            
+
             Point result = new Point(nextX, nextY);
             _lastMove = result;
             return result;

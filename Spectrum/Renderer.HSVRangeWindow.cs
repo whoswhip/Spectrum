@@ -61,10 +61,10 @@ namespace Spectrum
             {
                 float availWidth = ImGui.GetContentRegionAvail().X;
                 float availHeight = ImGui.GetContentRegionAvail().Y;
-                
+
                 float controlsHeight = 500;
                 float maxImageHeight = Math.Max(100, availHeight - controlsHeight);
-                
+
                 float imageDisplayWidth = (availWidth - 20) / 2;
                 float aspectRatio = (float)_originalImage.Height / _originalImage.Width;
                 float imageDisplayHeight = Math.Min(imageDisplayWidth * aspectRatio, maxImageHeight);

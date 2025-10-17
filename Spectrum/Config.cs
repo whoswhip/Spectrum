@@ -26,12 +26,12 @@ namespace Spectrum
             _currentConfigName = Path.GetFileNameWithoutExtension(fileName);
             _data = new T();
             _availableConfigs = [];
-            
+
             if (!Directory.Exists(_configDirectory))
             {
                 Directory.CreateDirectory(_configDirectory);
             }
-            
+
             UpdateAvailableConfigs();
             StartDirectoryWatcher();
             LoadConfig();
@@ -41,7 +41,7 @@ namespace Spectrum
         {
             if (string.IsNullOrEmpty(filename))
                 filename = _defaultFilename;
-                
+
             try
             {
                 if (File.Exists(filename))
@@ -77,7 +77,7 @@ namespace Spectrum
         {
             if (string.IsNullOrEmpty(filename))
                 filename = _defaultFilename;
-                
+
             try
             {
                 File.WriteAllText(filename, JsonConvert.SerializeObject(_data, Formatting.Indented));
@@ -110,7 +110,7 @@ namespace Spectrum
             }
 
             var filePath = Path.Combine(_configDirectory, $"{configName}.json");
-            
+
             if (!File.Exists(filePath))
             {
                 LogManager.Log($"Config {configName} not found in directory.", LogLevel.Error);
@@ -199,7 +199,7 @@ namespace Spectrum
             }
 
             var filePath = Path.Combine(_configDirectory, $"{configName}.json");
-            
+
             if (!File.Exists(filePath))
             {
                 LogManager.Log($"Config {configName} not found.", LogLevel.Error);
@@ -358,7 +358,7 @@ namespace Spectrum
         public double EmaSmootheningFactor { get; set; } = 0.1;
 
         public MovementMethod MovementMethod { get; set; } = MovementMethod.MouseEvent;
-        
+
         public double WindMouseGravity { get; set; } = 9.0;
         public double WindMouseWind { get; set; } = 3.0;
         public double WindMouseMaxStep { get; set; } = 10.0;

@@ -107,7 +107,7 @@ namespace Spectrum
 
                     ImGui.TextUnformatted("Movement Path");
                     ImGui.SameLine(ImGui.GetContentRegionAvail().X - 9);
-                    if (ImGui.Button(_showMovementPreview ? "X" : "?", new Vector2(20,20)))
+                    if (ImGui.Button(_showMovementPreview ? "X" : "?", new Vector2(20, 20)))
                         _showMovementPreview = !_showMovementPreview;
                     ImGui.SetNextItemWidth(-1);
                     MovementType AimPath = config.AimMovementType;

@@ -2,9 +2,9 @@
 using Vortice.Direct3D;
 using Vortice.Direct3D11;
 using Vortice.DXGI;
-using Size = System.Drawing.Size;
-using Rectangle = System.Drawing.Rectangle;
 using Point = System.Drawing.Point;
+using Rectangle = System.Drawing.Rectangle;
+using Size = System.Drawing.Size;
 
 namespace Spectrum.Detection
 {

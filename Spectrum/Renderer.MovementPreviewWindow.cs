@@ -160,7 +160,7 @@ namespace Spectrum
             {
                 _isDragging = false;
             }
-            
+
             ImGui.Dummy(new(ImGui.GetContentRegionAvail().X, 10));
             int interval = UpdatePreviewInterval;
             if (ImGuiExtensions.SliderFill("Update Interval (ms)", ref interval, 1, 100))
