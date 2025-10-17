@@ -11,8 +11,6 @@
     <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
     <TargetFrameworks></TargetFrameworks>
     <Platforms>AnyCPU;x64</Platforms>
-	<UIMode Condition="'$(Configuration)' == 'WebUI'">Web</UIMode>
-	<UIMode Condition="'$(Configuration)' != 'WebUI'">ImGui</UIMode>
   </PropertyGroup>
 
   <ItemGroup>
