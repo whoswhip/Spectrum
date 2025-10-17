@@ -175,6 +175,11 @@ namespace Spectrum.Detection
                                 }
 
                                 InputManager.SetLastDetection(new System.Drawing.Point(targetX, targetY));
+                                InputManager.SetLastDetectionBox(new Rectangle(
+                                    bestRect.X + bounds.X,
+                                    bestRect.Y + bounds.Y,
+                                    bestRect.Width,
+                                    bestRect.Height));
 
                                 if (config.EnableAim)
                                 {
@@ -193,6 +198,7 @@ namespace Spectrum.Detection
                         else if (config.CollectData && drawing != null)
                         {
                             AutoLabeling.AddBackgroundImage(drawing, false);
+                            MovementPaths.ResetWindMouse();
                         }
 
                         renderer?.CommitDetectionDrawCommands();
@@ -234,6 +240,7 @@ namespace Spectrum.Detection
                     {
                         renderer?.ClearDetectionDrawCommands();
                         renderer?.CommitDetectionDrawCommands();
+                        MovementPaths.ResetWindMouse();
                         Thread.Sleep(5);
                     }
                     if (InputManager.IsKeyOrMouseDown(mainConfig.Data.MenuKey))

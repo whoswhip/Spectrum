@@ -12,6 +12,7 @@ namespace Spectrum.Input
         public static extern bool GetCursorPos(out Point lpPoint);
         private static ConfigManager<ConfigData> mainConfig = Program.mainConfig;
         private static Point lastDetection = new Point();
+        private static Rectangle lastDetectionBox = new Rectangle();
         private static long _lastMoveTicks = 0;
         private static readonly double _dtRef = 1.0 / 120.0;
 
@@ -46,8 +47,9 @@ namespace Spectrum.Input
 
         public static void MoveMouse()
         {
+            var config = mainConfig.Data;
             Point reference = new Point();
-            if (mainConfig.Data.ClosestToMouse)
+            if (config.ClosestToMouse)
             {
                 GetCursorPos(out reference);
             }
@@ -61,21 +63,31 @@ namespace Spectrum.Input
             Point end = new Point(lastDetection.X, lastDetection.Y);
 
             double dt = GetDeltaSeconds();
-            double effSensitivity = TimeScaleFactor(mainConfig.Data.Sensitivity, dt);
+            double effSensitivity = TimeScaleFactor(config.Sensitivity, dt);
 
-            Point newPosition = mainConfig.Data.AimMovementType switch
+            bool insideBoundingBox = lastDetectionBox.Contains(start);
+
+            Point newPosition = config.AimMovementType switch
             {
-                MovementType.CubicBezier => MovementPaths.CubicBezierMovement(start, end, effSensitivity),
+                MovementType.CubicBezier => MovementPaths.CubicBezierCurvedMovement(start, end, effSensitivity),
                 MovementType.Linear => MovementPaths.LinearInterpolation(start, end, effSensitivity),
                 MovementType.Adaptive => MovementPaths.AdaptiveMovement(start, end, effSensitivity),
                 MovementType.QuadraticBezier => MovementPaths.CurvedMovement(start, end, effSensitivity),
                 MovementType.PerlinNoise => MovementPaths.PerlinNoiseMovement(start, end, effSensitivity),
-                _ => end
+                MovementType.WindMouse => MovementPaths.WindMouse(start, end, 
+                    config.WindMouseGravity, 
+                    config.WindMouseWind, 
+                    config.WindMouseMaxStep, 
+                    config.WindMouseTargetArea, 
+                    effSensitivity,
+                    config.WindMouseOvershoot,
+                    insideBoundingBox),
+                _ => MovementPaths.LinearInterpolation(start, end, effSensitivity),
             };
 
-            if (mainConfig.Data.EmaSmoothening)
+            if (config.EmaSmoothening)
             {
-                double emaAlpha = TimeScaleFactor(mainConfig.Data.EmaSmootheningFactor, dt);
+                double emaAlpha = TimeScaleFactor(config.EmaSmootheningFactor, dt);
                 newPosition.X = (int)Math.Round(MovementPaths.EmaSmoothing(reference.X, newPosition.X, emaAlpha));
                 newPosition.Y = (int)Math.Round(MovementPaths.EmaSmoothing(reference.Y, newPosition.Y, emaAlpha));
             }
@@ -84,10 +96,10 @@ namespace Spectrum.Input
             int deltaY = newPosition.Y - reference.Y;
 
             if (Math.Abs(deltaX) < 1 && Math.Abs(deltaY) < 1) return;
-            if (deltaX > mainConfig.Data.ImageWidth || deltaX < -mainConfig.Data.ImageWidth || deltaY > mainConfig.Data.ImageHeight || deltaY < -mainConfig.Data.ImageHeight)
+            if (deltaX > config.ImageWidth || deltaX < -config.ImageWidth || deltaY > config.ImageHeight || deltaY < -config.ImageHeight)
                 return;
 
-            switch (mainConfig.Data.MovementMethod)
+            switch (config.MovementMethod)
             {
                 case MovementMethod.MouseEvent:
                     MouseEvent.Move(deltaX, deltaY);
@@ -109,13 +121,14 @@ namespace Spectrum.Input
 
         public static async Task ClickMouse()
         {
-            if (!mainConfig.Data.TriggerBot)
+            var config = mainConfig.Data;
+            if (!config.TriggerBot)
                 return;
-            if (!IsKeyOrMouseDown(mainConfig.Data.TriggerKeybind) || mainConfig.Data.TriggerKeybind.Key == Keys.None)
+            if (!IsKeyOrMouseDown(config.TriggerKeybind) || config.TriggerKeybind.Key == Keys.None)
                 return;
 
             var currentPosition = new Point();
-            if (mainConfig.Data.ClosestToMouse)
+            if (config.ClosestToMouse)
             {
                 GetCursorPos(out currentPosition);
             }
@@ -125,14 +138,14 @@ namespace Spectrum.Input
                 currentPosition.Y = SystemHelper.GetPrimaryScreenSize().Height / 2;
             }
 
-            if (mainConfig.Data.TriggerDelay > 0)
-                await Task.Delay(mainConfig.Data.TriggerDelay);
+            if (config.TriggerDelay > 0)
+                await Task.Delay(config.TriggerDelay);
 
-            int radius = mainConfig.Data.TriggerFov;
+            int radius = config.TriggerFov;
 
             if (Math.Abs(currentPosition.X - lastDetection.X) < radius && Math.Abs(currentPosition.Y - lastDetection.Y) < radius)
             {
-                switch (mainConfig.Data.MovementMethod)
+                switch (config.MovementMethod)
                 {
                     case MovementMethod.MouseEvent:
                         MouseEvent.ClickDown();
@@ -150,8 +163,8 @@ namespace Spectrum.Input
                         MouseEvent.ClickDown();
                         break;
                 }
-                await Task.Delay(mainConfig.Data.TriggerDuration);
-                switch (mainConfig.Data.MovementMethod)
+                await Task.Delay(config.TriggerDuration);
+                switch (config.MovementMethod)
                 {
                     case MovementMethod.MouseEvent:
                         MouseEvent.ClickUp();
@@ -179,6 +192,11 @@ namespace Spectrum.Input
         public static void SetLastDetection(Point point)
         {
             lastDetection = point;
+        }
+
+        public static void SetLastDetectionBox(Rectangle box)
+        {
+            lastDetectionBox = box;
         }
 
         [DllImport("user32.dll")]

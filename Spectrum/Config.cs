@@ -303,7 +303,8 @@ namespace Spectrum
         CubicBezier,
         QuadraticBezier,
         Adaptive,
-        PerlinNoise
+        PerlinNoise,
+        WindMouse
     }
     public enum MovementMethod
     {
@@ -357,6 +358,12 @@ namespace Spectrum
         public double EmaSmootheningFactor { get; set; } = 0.1;
 
         public MovementMethod MovementMethod { get; set; } = MovementMethod.MouseEvent;
+        
+        public double WindMouseGravity { get; set; } = 9.0;
+        public double WindMouseWind { get; set; } = 3.0;
+        public double WindMouseMaxStep { get; set; } = 10.0;
+        public double WindMouseTargetArea { get; set; } = 5.0;
+        public bool WindMouseOvershoot { get; set; } = false;
         #endregion
 
         #region Trigger Settings
