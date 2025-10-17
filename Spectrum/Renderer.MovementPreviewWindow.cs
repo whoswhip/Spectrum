@@ -40,6 +40,8 @@ namespace Spectrum
                 return;
             }
 
+            var boundingBox = new Rectangle(_previewEndPoint.X - 20, _previewEndPoint.Y - 40, 40, 80);
+
             if ((DateTime.Now - _lastPreviewUpdate).TotalMilliseconds > UpdatePreviewInterval)
             {
                 _lastPreviewUpdate = DateTime.Now;
@@ -57,6 +59,7 @@ namespace Spectrum
                     double distance = Math.Sqrt(Math.Pow(_previewEndPoint.X - current.X, 2) + Math.Pow(_previewEndPoint.Y - current.Y, 2));
                     if (distance < config.WindMouseTargetArea || steps++ >= maxSteps)
                         break;
+                    bool isInBox = boundingBox.Contains(current);
                     Point nextPoint = config.AimMovementType switch
                     {
                         MovementType.Linear => MovementPaths.LinearInterpolation(current, _previewEndPoint, progress),
@@ -71,7 +74,7 @@ namespace Spectrum
                             config.WindMouseTargetArea,
                             config.Sensitivity,
                             config.WindMouseOvershoot,
-                            false),
+                            isInBox),
                         _ => MovementPaths.LinearInterpolation(current, _previewEndPoint, progress),
                     };
                     if (config.EmaSmoothening)
@@ -91,6 +94,10 @@ namespace Spectrum
             Vector2 size = new Vector2(canvasSize.X, canvasSize.Y - 60);
             drawList.AddRectFilled(canvasPos, size + canvasPos, ImGui.GetColorU32(new Vector4(0.12f, 0.12f, 0.14f, 1.0f)), 3f);
             drawList.AddRect(canvasPos, size + canvasPos, ImGui.GetColorU32(new Vector4(0.17f, 0.17f, 0.20f, 1.0f)), 3f);
+            drawList.AddRect(
+                new Vector2(boundingBox.X + canvasPos.X, boundingBox.Top + canvasPos.Y), 
+                new Vector2(boundingBox.X + boundingBox.Width + canvasPos.X, boundingBox.Y + boundingBox.Height + canvasPos.Y), 
+                ImGui.GetColorU32(new Vector4(0, 0, 1, 1)), 0.0f, ImDrawFlags.None, 2.0f);
 
             if (_previewPath.Count > 1)
             {
@@ -146,6 +153,10 @@ namespace Spectrum
             if (_isDragging && isMouseDown)
             {
                 Vector2 localMousePos = mousePos - canvasPos;
+                if (localMousePos.X < 0) localMousePos.X = 0;
+                if (localMousePos.Y < 0) localMousePos.Y = 0;
+                if (localMousePos.X > size.X) localMousePos.X = size.X;
+                if (localMousePos.Y > size.Y) localMousePos.Y = size.Y;
                 if (_isMovingStart)
                 {
                     _previewStartPoint = new Point((int)localMousePos.X, (int)localMousePos.Y);
