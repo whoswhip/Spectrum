@@ -735,14 +735,37 @@ namespace Spectrum
             {
                 if (config.FOVType == FovType.Rectangle)
                 {
-                    drawList.AddRect(new Vector2((screenSize.width - config.ImageWidth) / 2, (screenSize.height - config.ImageHeight) / 2),
-                        new Vector2((screenSize.width + config.ImageWidth) / 2, (screenSize.height + config.ImageHeight) / 2),
-                        ImGui.GetColorU32(config.FOVColor), 0.0f, ImDrawFlags.None, 1.0f);
+                    Vector2 topLeft;
+                    Vector2 bottomRight;
+                    if (!config.ClosestToMouse)
+                    {
+                        topLeft = new((screenSize.width - config.ImageWidth) / 2, (screenSize.height - config.ImageHeight) / 2);
+                        bottomRight = new((screenSize.width + config.ImageWidth) / 2, (screenSize.height + config.ImageHeight) / 2);
+                    }
+                    else
+                    {
+                        _ = InputManager.GetCursorPos(out System.Drawing.Point mousePos);
+                        topLeft = new(mousePos.X - (config.ImageWidth / 2), mousePos.Y - (config.ImageHeight / 2));
+                        bottomRight = new(mousePos.X + (config.ImageWidth / 2), mousePos.Y + (config.ImageHeight / 2));
+                    }
+
+
+                    drawList.AddRect(topLeft, bottomRight, ImGui.GetColorU32(config.FOVColor), 0.0f, ImDrawFlags.None, 1.0f);
                 }
                 else if (config.FOVType == FovType.Circle)
                 {
-                    drawList.AddCircle(new Vector2(screenSize.width / 2, screenSize.height / 2), config.ImageWidth / 2,
-                        ImGui.GetColorU32(config.FOVColor), 100, 1.0f);
+                    Vector2 center;
+                    if (!config.ClosestToMouse)
+                    {
+                        center = new(screenSize.width / 2, screenSize.height / 2);
+                    }
+                    else
+                    {
+                        _ = InputManager.GetCursorPos(out System.Drawing.Point mousePos);
+                        center = new(mousePos.X, mousePos.Y);
+                    }
+
+                    drawList.AddCircle(center, config.ImageWidth / 2,ImGui.GetColorU32(config.FOVColor), 100, 1.0f);
                 } // added straight to drawlist to prevent caching/flickering
             }
 

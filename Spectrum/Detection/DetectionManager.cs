@@ -47,12 +47,25 @@ namespace Spectrum.Detection
 
                         renderer?.ClearDetectionDrawCommands();
 
-                        bounds = new Rectangle(
-                            (screenSize.Width - config.ImageWidth) / 2,
-                            (screenSize.Height - config.ImageHeight) / 2,
-                            config.ImageWidth,
-                            config.ImageHeight
-                        );
+                        if (!config.ClosestToMouse)
+                        {
+                            bounds = new Rectangle(
+                                (screenSize.Width - config.ImageWidth) / 2,
+                                (screenSize.Height - config.ImageHeight) / 2,
+                                config.ImageWidth,
+                                config.ImageHeight
+                            );
+                        }
+                        else
+                        {
+                            _ = InputManager.GetCursorPos(out System.Drawing.Point mousePos);
+                            bounds = new Rectangle(
+                                mousePos.X - (config.ImageWidth/2),
+                                mousePos.Y - (config.ImageHeight/2),
+                                config.ImageWidth,
+                                config.ImageHeight
+                            );
+                        }
                         var screenshot = null as Bitmap;
                         if (config.CaptureMethod == CaptureMethod.DirectX && _captureManager.IsDirectXAvailable)
                             screenshot = _captureManager.CaptureScreenshotDirectX(bounds);

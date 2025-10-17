@@ -188,15 +188,9 @@ namespace Spectrum.Input
             }
         }
 
-        public static void SetLastDetection(Point point)
-        {
-            lastDetection = point;
-        }
+        public static void SetLastDetection(Point point) { lastDetection = point; }
 
-        public static void SetLastDetectionBox(Rectangle box)
-        {
-            lastDetectionBox = box;
-        }
+        public static void SetLastDetectionBox(Rectangle box) { lastDetectionBox = box; }
 
         [DllImport("user32.dll")]
         private static extern short GetAsyncKeyState(int vKey);
