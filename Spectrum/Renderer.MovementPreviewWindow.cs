@@ -94,8 +94,8 @@ namespace Spectrum
             drawList.AddRectFilled(canvasPos, size + canvasPos, ImGui.GetColorU32(new Vector4(0.12f, 0.12f, 0.14f, 1.0f)), 3f);
             drawList.AddRect(canvasPos, size + canvasPos, ImGui.GetColorU32(new Vector4(0.17f, 0.17f, 0.20f, 1.0f)), 3f);
             drawList.AddRect(
-                new Vector2(boundingBox.X + canvasPos.X, boundingBox.Top + canvasPos.Y), 
-                new Vector2(boundingBox.X + boundingBox.Width + canvasPos.X, boundingBox.Y + boundingBox.Height + canvasPos.Y), 
+                new Vector2(boundingBox.X + canvasPos.X, boundingBox.Top + canvasPos.Y),
+                new Vector2(boundingBox.X + boundingBox.Width + canvasPos.X, boundingBox.Y + boundingBox.Height + canvasPos.Y),
                 ImGui.GetColorU32(new Vector4(0, 0, 1, 1)), 0.0f, ImDrawFlags.None, 2.0f);
 
             if (_previewPath.Count > 1)
@@ -160,7 +160,7 @@ namespace Spectrum
                 {
                     _previewStartPoint = new Point((int)localMousePos.X, (int)localMousePos.Y);
                 }
-                else 
+                else
                 {
                     _previewEndPoint = new Point((int)localMousePos.X, (int)localMousePos.Y);
                 }

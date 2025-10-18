@@ -744,7 +744,7 @@ namespace Spectrum
                     }
                     else
                     {
-                        _ = InputManager.GetCursorPos(out System.Drawing.Point mousePos);
+                        InputManager.GetCursorPos(out System.Drawing.Point mousePos);
                         topLeft = new(mousePos.X - (config.ImageWidth / 2), mousePos.Y - (config.ImageHeight / 2));
                         bottomRight = new(mousePos.X + (config.ImageWidth / 2), mousePos.Y + (config.ImageHeight / 2));
                     }
@@ -765,7 +765,7 @@ namespace Spectrum
                         center = new(mousePos.X, mousePos.Y);
                     }
 
-                    drawList.AddCircle(center, config.ImageWidth / 2,ImGui.GetColorU32(config.FOVColor), 100, 1.0f);
+                    drawList.AddCircle(center, config.ImageWidth / 2, ImGui.GetColorU32(config.FOVColor), 100, 1.0f);
                 } // added straight to drawlist to prevent caching/flickering
             }
 

@@ -60,15 +60,27 @@ namespace Spectrum.Detection
                         {
                             _ = InputManager.GetCursorPos(out System.Drawing.Point mousePos);
                             bounds = new Rectangle(
-                                mousePos.X - (config.ImageWidth/2),
-                                mousePos.Y - (config.ImageHeight/2),
+                                mousePos.X - (config.ImageWidth / 2),
+                                mousePos.Y - (config.ImageHeight / 2),
                                 config.ImageWidth,
                                 config.ImageHeight
                             );
                         }
-                        var screenshot = null as Bitmap;
+
+                        var screenRect = new Rectangle(0, 0, screenSize.Width, screenSize.Height);
+                        bounds = Rectangle.Intersect(bounds, screenRect);
+                        if (bounds.Width <= 0 || bounds.Height <= 0)
+                        {
+                            renderer?.CommitDetectionDrawCommands();
+                            Thread.Sleep(2);
+                            continue;
+                        }
+
+                        Bitmap? screenshot = null;
                         if (config.CaptureMethod == CaptureMethod.DirectX && _captureManager.IsDirectXAvailable)
+                        {
                             screenshot = _captureManager.CaptureScreenshotDirectX(bounds);
+                        }
                         else
                         {
                             if (_captureManager.IsInitialized)
