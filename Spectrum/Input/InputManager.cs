@@ -206,22 +206,43 @@ namespace Spectrum.Input
 
             Action<MakcuMouseButton, bool>? makcuHandler = null;
             bool subscribedToMakcu = false;
+
+            void UnsubscribeMakcu()
+            {
+                if (subscribedToMakcu && makcuHandler != null && MakcuMain.MakcuInstance != null)
+                {
+                    try { MakcuMain.MakcuInstance.ButtonStateChanged -= makcuHandler; } catch { }
+                }
+            }
+
             if (mainConfig.Data.MovementMethod == MovementMethod.Makcu && EnsureMakcuReady() && MakcuMain.MakcuInstance != null)
             {
                 makcuHandler = (btn, isPressed) =>
                 {
                     if (!isPressed) return;
-                    var key = MapMakcuButtonToKeys(btn);
-                    if (key.HasValue)
+                    var key = makcuToKeysMap.GetValueOrDefault(btn);
+                    if (key != Keys.None)
                     {
-                        tcs.TrySetResult(key.Value);
+                        tcs.TrySetResult(key);
                     }
                 };
                 MakcuMain.MakcuInstance.ButtonStateChanged += makcuHandler;
                 subscribedToMakcu = true;
             }
 
-            var thread = new Thread(() =>
+            CancellationTokenRegistration ctr = default;
+            if (cancellationToken?.CanBeCanceled == true)
+            {
+                ctr = cancellationToken.Value.Register(() => tcs.TrySetCanceled());
+            }
+
+            _ = tcs.Task.ContinueWith(_ =>
+            {
+                try { ctr.Dispose(); } catch {}
+                UnsubscribeMakcu();
+            }, TaskScheduler.Default);
+
+            Task.Run(() =>
             {
                 try
                 {
@@ -231,20 +252,21 @@ namespace Spectrum.Input
                         {
                             return;
                         }
-                        for (int key = 0x08; key <= 0xFE; key++)
-                        {
-                            if ((GetAsyncKeyState(key) & 0x8000) != 0)
-                            {
-                                tcs.TrySetResult((Keys)key);
-                                return;
-                            }
-                        }
 
                         foreach (var mouseKey in MouseKeys)
                         {
                             if ((GetAsyncKeyState((int)mouseKey) & 0x8000) != 0)
                             {
                                 tcs.TrySetResult(mouseKey);
+                                return;
+                            }
+                        }
+
+                        for (int key = 0x08; key <= 0xFE; key++)
+                        {
+                            if ((GetAsyncKeyState(key) & 0x8000) != 0)
+                            {
+                                tcs.TrySetResult((Keys)key);
                                 return;
                             }
                         }
@@ -259,23 +281,10 @@ namespace Spectrum.Input
                 }
                 finally
                 {
-                    if (subscribedToMakcu && makcuHandler != null && MakcuMain.MakcuInstance != null)
-                    {
-                        try { MakcuMain.MakcuInstance.ButtonStateChanged -= makcuHandler; } catch { }
-                    }
+                    UnsubscribeMakcu();
                 }
-            })
-            { IsBackground = true };
+            });
 
-            tcs.Task.ContinueWith(_ =>
-            {
-                if (subscribedToMakcu && makcuHandler != null && MakcuMain.MakcuInstance != null)
-                {
-                    try { MakcuMain.MakcuInstance.ButtonStateChanged -= makcuHandler; } catch { }
-                }
-            }, TaskScheduler.Default);
-
-            thread.Start();
             return tcs.Task;
         }
 
@@ -300,35 +309,25 @@ namespace Spectrum.Input
                 return false;
             }
         }
-
-        private static Keys? MapMakcuButtonToKeys(MakcuMouseButton btn)
+        private static Dictionary<MakcuMouseButton, Keys> makcuToKeysMap = new()
         {
-            return btn switch
-            {
-                MakcuMouseButton.Left => Keys.LButton,
-                MakcuMouseButton.Right => Keys.RButton,
-                MakcuMouseButton.Middle => Keys.MButton,
-                MakcuMouseButton.Mouse4 => Keys.XButton1,
-                MakcuMouseButton.Mouse5 => Keys.XButton2,
-                _ => null
-            };
-        }
+            { MakcuMouseButton.Left, Keys.LButton },
+            { MakcuMouseButton.Right, Keys.RButton },
+            { MakcuMouseButton.Middle, Keys.MButton },
+            { MakcuMouseButton.Mouse4, Keys.XButton1 },
+            { MakcuMouseButton.Mouse5, Keys.XButton2 }
+        };
 
         public static bool IsKeyOrMouseDown(Keys key)
         {
             if (mainConfig.Data.MovementMethod == MovementMethod.Makcu && MakcuMain.MakcuInstance?.IsInitializedAndConnected == true)
             {
-                var makcuBtn = MapKeysToMakcuButton(key);
-                if (makcuBtn.HasValue)
+                var makcuBtn = makcuToKeysMap.FirstOrDefault(x => x.Value == key).Key;
+                try
                 {
-                    try
-                    {
-                        var states = MakcuMain.MakcuInstance.GetCurrentButtonStates();
-
-                        return states.TryGetValue(makcuBtn.Value, out var pressed) && pressed;
-                    }
-                    catch { }
-                }
+                    var states = MakcuMain.MakcuInstance.GetCurrentButtonStates();
+                    return states.TryGetValue(makcuBtn, out var pressed) && pressed;
+                } catch {}
             }
             return (GetAsyncKeyState((int)key) & 0x8000) != 0; ;
         }
@@ -361,19 +360,6 @@ namespace Spectrum.Input
             }
 
             return _keybindToggleStates[toggleKey];
-        }
-
-        private static MakcuMouseButton? MapKeysToMakcuButton(Keys key)
-        {
-            return key switch
-            {
-                Keys.LButton => MakcuMouseButton.Left,
-                Keys.RButton => MakcuMouseButton.Right,
-                Keys.MButton => MakcuMouseButton.Middle,
-                Keys.XButton1 => MakcuMouseButton.Mouse4,
-                Keys.XButton2 => MakcuMouseButton.Mouse5,
-                _ => null
-            };
         }
     }
 }
