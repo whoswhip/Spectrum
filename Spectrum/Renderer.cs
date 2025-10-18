@@ -111,13 +111,12 @@ namespace Spectrum
                         _showMovementPreview = !_showMovementPreview;
                     ImGui.SetNextItemWidth(-1);
                     MovementType AimPath = config.AimMovementType;
-                    if (ImGui.BeginCombo("##Movement Type", AimPath.ToString()))
+                    if (ImGui.BeginCombo("##Movement Type", FormatText(AimPath.ToString())))
                     {
                         foreach (MovementType type in Enum.GetValues(typeof(MovementType)))
                         {
                             bool isSelected = (type == AimPath);
-                            string displayName = string.Concat(type.ToString().Select((x, i) => i > 0 && char.IsUpper(x) ? " " + x : x.ToString())); // just adds a space before capitals except for the first
-                            if (ImGui.Selectable(displayName, isSelected))
+                            if (ImGui.Selectable(FormatText(type.ToString()), isSelected))
                                 config.AimMovementType = type;
                             if (isSelected)
                                 ImGui.SetItemDefaultFocus();
@@ -180,70 +179,6 @@ namespace Spectrum
                         if (ImGuiExtensions.SliderFill("X Offset (px)", ref XOffset, -200, 200))
                             config.XOffsetPixels = Math.Max(-200, XOffset);
                     }
-
-                    ImGui.SeparatorText("Overlay Settings");
-
-                    bool DrawFOV = config.DrawFOV;
-                    if (ImGui.Checkbox("##Draw FOV", ref DrawFOV))
-                        config.DrawFOV = DrawFOV;
-
-                    ImGui.SameLine();
-                    ImGui.Text("Draw FOV");
-
-                    ImGui.SameLine(ImGui.GetContentRegionAvail().X - 12);
-                    Vector4 FOVColor = config.FOVColor;
-                    if (ImGui.ColorEdit4("FOV Color", ref FOVColor, ImGuiColorEditFlags.NoInputs | ImGuiColorEditFlags.NoLabel))
-                        config.FOVColor = FOVColor;
-
-                    bool DrawDetections = config.DrawDetections;
-                    if (ImGui.Checkbox("##Draw Detections", ref DrawDetections))
-                        config.DrawDetections = DrawDetections;
-                    ImGui.SameLine();
-                    ImGui.Text("Draw Detections");
-
-                    ImGui.SameLine(ImGui.GetContentRegionAvail().X - 12);
-                    Vector4 DetectionColor = config.DetectionColor;
-                    if (ImGui.ColorEdit4("Draw Color", ref DetectionColor, ImGuiColorEditFlags.NoInputs | ImGuiColorEditFlags.NoLabel))
-                        config.DetectionColor = DetectionColor;
-                    if (DrawDetections)
-                    {
-                        bool HighlightTarget = config.HighlightTarget;
-                        if (ImGui.Checkbox("Highlight Target", ref HighlightTarget))
-                            config.HighlightTarget = HighlightTarget;
-                        ImGui.SameLine(ImGui.GetContentRegionAvail().X - 12);
-                        Vector4 HighlightColor = config.TargetColor;
-                        if (ImGui.ColorEdit4("Highlight Color", ref HighlightColor, ImGuiColorEditFlags.NoInputs | ImGuiColorEditFlags.NoLabel))
-                            config.TargetColor = HighlightColor;
-                    }
-
-                    bool DrawAimPoint = config.DrawAimPoint;
-                    if (ImGui.Checkbox("##Draw Aim Point", ref DrawAimPoint))
-                        config.DrawAimPoint = DrawAimPoint;
-                    ImGui.SameLine();
-                    ImGui.Text("Draw Aim Point");
-                    ImGui.SameLine(ImGui.GetContentRegionAvail().X - 12);
-                    Vector4 AimPointColor = config.AimPointColor;
-                    if (ImGui.ColorEdit4("Aim Point Color", ref AimPointColor, ImGuiColorEditFlags.NoInputs | ImGuiColorEditFlags.NoLabel))
-                        config.AimPointColor = AimPointColor;
-
-                    if (DrawFOV)
-                    {
-                        ImGui.TextUnformatted("FOV Type");
-                        ImGui.SetNextItemWidth(-1);
-                        FovType fovType = config.FOVType;
-                        if (ImGui.BeginCombo("##FOV Type", fovType.ToString()))
-                        {
-                            foreach (FovType type in Enum.GetValues(typeof(FovType)))
-                            {
-                                bool isSelected = (type == fovType);
-                                if (ImGui.Selectable(type.ToString(), isSelected))
-                                    config.FOVType = type;
-                                if (isSelected)
-                                    ImGui.SetItemDefaultFocus();
-                            }
-                            ImGui.EndCombo();
-                        }
-                    }
                     ImGuiExtensions.EndPane();
                 }
 
@@ -284,6 +219,77 @@ namespace Spectrum
 
                 ImGuiExtensions.EndPaneGroup();
 
+                ImGui.EndTabItem();
+            }
+
+            if (ImGui.BeginTabItem("Overlay"))
+            {
+                ImGuiExtensions.BeginPaneGroup("Overlay Panes", 1, 12f, new Vector2(12, 10), ImGuiChildFlags.AlwaysUseWindowPadding, ImGuiWindowFlags.None, 0f);
+                if (ImGuiExtensions.BeginPane("Overlay"))
+                {
+                    bool DrawFOV = config.DrawFOV;
+                    if (ImGui.Checkbox("##Draw FOV", ref DrawFOV))
+                        config.DrawFOV = DrawFOV;
+                    ImGui.SameLine();
+                    ImGui.Text("Draw FOV");
+
+                    ImGui.SameLine(ImGui.GetContentRegionAvail().X - 10);
+                    Vector4 FOVColor = config.FOVColor;
+                    if (ImGui.ColorEdit4("FOV Color", ref FOVColor, ImGuiColorEditFlags.NoInputs | ImGuiColorEditFlags.NoLabel))
+                        config.FOVColor = FOVColor;
+
+                    bool DrawDetections = config.DrawDetections;
+                    if (ImGui.Checkbox("##Draw Detections", ref DrawDetections))
+                        config.DrawDetections = DrawDetections;
+                    ImGui.SameLine();
+                    ImGui.Text("Draw Detections");
+
+                    ImGui.SameLine(ImGui.GetContentRegionAvail().X - 10);
+                    Vector4 DetectionColor = config.DetectionColor;
+                    if (ImGui.ColorEdit4("Draw Color", ref DetectionColor, ImGuiColorEditFlags.NoInputs | ImGuiColorEditFlags.NoLabel))
+                        config.DetectionColor = DetectionColor;
+                    if (DrawDetections)
+                    {
+                        bool HighlightTarget = config.HighlightTarget;
+                        if (ImGui.Checkbox("Highlight Target", ref HighlightTarget))
+                            config.HighlightTarget = HighlightTarget;
+                        ImGui.SameLine(ImGui.GetContentRegionAvail().X - 10);
+                        Vector4 HighlightColor = config.TargetColor;
+                        if (ImGui.ColorEdit4("Highlight Color", ref HighlightColor, ImGuiColorEditFlags.NoInputs | ImGuiColorEditFlags.NoLabel))
+                            config.TargetColor = HighlightColor;
+                    }
+
+                    bool DrawAimPoint = config.DrawAimPoint;
+                    if (ImGui.Checkbox("##Draw Aim Point", ref DrawAimPoint))
+                        config.DrawAimPoint = DrawAimPoint;
+                    ImGui.SameLine();
+                    ImGui.Text("Draw Aim Point");
+                    ImGui.SameLine(ImGui.GetContentRegionAvail().X - 10);
+                    Vector4 AimPointColor = config.AimPointColor;
+                    if (ImGui.ColorEdit4("Aim Point Color", ref AimPointColor, ImGuiColorEditFlags.NoInputs | ImGuiColorEditFlags.NoLabel))
+                        config.AimPointColor = AimPointColor;
+
+                    if (DrawFOV)
+                    {
+                        ImGui.TextUnformatted("FOV Type");
+                        ImGui.SetNextItemWidth(-1);
+                        FovType fovType = config.FOVType;
+                        if (ImGui.BeginCombo("##FOV Type", fovType.ToString()))
+                        {
+                            foreach (FovType type in Enum.GetValues(typeof(FovType)))
+                            {
+                                bool isSelected = (type == fovType);
+                                if (ImGui.Selectable(type.ToString(), isSelected))
+                                    config.FOVType = type;
+                                if (isSelected)
+                                    ImGui.SetItemDefaultFocus();
+                            }
+                            ImGui.EndCombo();
+                        }
+                    }
+                    ImGuiExtensions.EndPane();
+                }
+                ImGuiExtensions.EndPaneGroup();
                 ImGui.EndTabItem();
             }
 
@@ -523,7 +529,6 @@ namespace Spectrum
                 ImGui.EndTabItem();
             }
 
-
             if (ImGui.BeginTabItem("Settings"))
             {
                 ImGuiExtensions.BeginPaneGroup("Settings Panes", 2, 12f, new Vector2(12, 10), ImGuiChildFlags.AlwaysUseWindowPadding, ImGuiWindowFlags.None, 0f);
@@ -533,12 +538,12 @@ namespace Spectrum
                     ImGui.TextUnformatted("Movement Method");
                     ImGui.SetNextItemWidth(-1);
                     MovementMethod movementMethod = config.MovementMethod;
-                    if (ImGui.BeginCombo("##Movement Method", movementMethod.ToString()))
+                    if (ImGui.BeginCombo("##Movement Method", FormatText(movementMethod.ToString())))
                     {
                         foreach (MovementMethod method in Enum.GetValues(typeof(MovementMethod)))
                         {
                             bool isSelected = (method == movementMethod);
-                            if (ImGui.Selectable(method.ToString(), isSelected))
+                            if (ImGui.Selectable(FormatText(method.ToString()), isSelected))
                             {
                                 config.MovementMethod = method;
                                 switch (method)
@@ -928,11 +933,16 @@ namespace Spectrum
             }
         }
 
-        public Vector2 GetTextWidth(string text, int fontSize = 16)
+        public static Vector2 GetTextWidth(string text, int fontSize = 16)
         {
             if (string.IsNullOrEmpty(text))
                 return new Vector2(0, 0);
             return ImGui.CalcTextSize(text, 0, text.Length, fontSize);
+        }
+
+        public static string FormatText(string text)
+        {
+            return string.Concat(text.Select((x, i) => i > 0 && char.IsUpper(x) ? " " + x : x.ToString()));
         }
     }
 }
