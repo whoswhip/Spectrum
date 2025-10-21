@@ -8,7 +8,7 @@ namespace Spectrum.Detection
     {
         private readonly Stopwatch stopwatch = new Stopwatch();
         private Rectangle bounds = new Rectangle(0, 0, 0, 0);
-        private readonly (int Width, int Height) screenSize = SystemHelper.GetPrimaryScreenSize();
+        private readonly (int Width, int Height) screenSize = Win32.GetPrimaryScreenSize();
         private readonly int minArea;
         private readonly ConfigManager<ConfigData> mainConfig = Program.mainConfig;
         private readonly Renderer? renderer;
@@ -206,7 +206,7 @@ namespace Spectrum.Detection
                                     bestRect.Width,
                                     bestRect.Height));
 
-                                if (config.EnableAim)
+                                if (config.EnableAim && InputManager.IsKeyOrMouseDown(config.Keybind))
                                 {
                                     InputManager.MoveMouse();
                                 }
@@ -214,7 +214,7 @@ namespace Spectrum.Detection
                                 {
                                     var _ = InputManager.ClickMouse();
                                 }
-                                if (renderer != null && config.DrawTriggerFov && config.TriggerBot)
+                                if (renderer != null && config.DrawTriggerFov && config.TriggerBot && !config.TriggerInBoundsOnly)
                                 {
                                     renderer.AddCircle(new System.Numerics.Vector2(targetX, targetY), config.TriggerFov, config.TriggerRadiusColor, 100);
                                 }

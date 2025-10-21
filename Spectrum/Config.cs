@@ -368,9 +368,13 @@ namespace Spectrum
         #region Trigger Settings
         public bool TriggerBot { get; set; } = false;
         public Keybind TriggerKeybind = new(Keys.XButton1, KeybindType.Hold);
+        public bool TriggerRandomDelay { get; set; } = false;
         public int TriggerDelay { get; set; } = 50; // milliseconds
-        public int TriggerFov { get; set; } = 15; // pixels
+        public bool TriggerSpray = false; // if true ignore duration 
+        public bool TriggerRandomDuration { get; set; } = false;
         public int TriggerDuration { get; set; } = 100; // milliseconds
+        public bool TriggerInBoundsOnly { get; set; } = false;
+        public int TriggerFov { get; set; } = 15; // pixels
         public bool DrawTriggerFov { get; set; } = false;
         public Vector4 TriggerRadiusColor { get; set; } = new Vector4(1.0f, 0.0f, 0.0f, 1.0f);
         #endregion
@@ -403,6 +407,7 @@ namespace Spectrum
 
         #region Misc
         public bool DebugMode { get; set; } = false;
+        public bool AntiCapture { get; set; } = false;
         #endregion
     }
     public class ColorData

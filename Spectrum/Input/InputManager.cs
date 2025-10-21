@@ -15,6 +15,7 @@ namespace Spectrum.Input
         private static Rectangle lastDetectionBox = new Rectangle();
         private static long _lastMoveTicks = 0;
         private static readonly double _dtRef = 1.0 / 120.0;
+        private static bool isSpraying = false;
 
         private static double GetDeltaSeconds()
         {
@@ -48,15 +49,15 @@ namespace Spectrum.Input
         public static void MoveMouse()
         {
             var config = mainConfig.Data;
-            Point reference = new Point();
+            Point reference = new();
             if (config.ClosestToMouse)
             {
                 GetCursorPos(out reference);
             }
             else
             {
-                reference.X = SystemHelper.GetPrimaryScreenSize().Width / 2;
-                reference.Y = SystemHelper.GetPrimaryScreenSize().Height / 2;
+                reference.X = Win32.GetPrimaryScreenSize().Width / 2;
+                reference.Y = Win32.GetPrimaryScreenSize().Height / 2;
             }
 
             Point start = new Point(reference.X, reference.Y);
@@ -133,58 +134,93 @@ namespace Spectrum.Input
             }
             else
             {
-                currentPosition.X = SystemHelper.GetPrimaryScreenSize().Width / 2;
-                currentPosition.Y = SystemHelper.GetPrimaryScreenSize().Height / 2;
+                currentPosition.X = Win32.GetPrimaryScreenSize().Width / 2;
+                currentPosition.Y = Win32.GetPrimaryScreenSize().Height / 2;
             }
 
-            if (config.TriggerDelay > 0)
+            if (config.TriggerDelay > 0 && !config.TriggerRandomDelay)
                 await Task.Delay(config.TriggerDelay);
+            else if (config.TriggerRandomDelay)
+                await Task.Delay(Random.Shared.Next(10, config.TriggerDelay + 1));
 
             int radius = config.TriggerFov;
+            bool shouldClick;
+            if (config.TriggerInBoundsOnly)
+                shouldClick = lastDetectionBox.Contains(currentPosition);
+            else
+                shouldClick = Math.Abs(currentPosition.X - lastDetection.X) < radius && Math.Abs(currentPosition.Y - lastDetection.Y) < radius;
 
-            if (Math.Abs(currentPosition.X - lastDetection.X) < radius && Math.Abs(currentPosition.Y - lastDetection.Y) < radius)
+
+            if (shouldClick)
             {
-                switch (config.MovementMethod)
+                if (config.TriggerSpray && !isSpraying)
                 {
-                    case MovementMethod.MouseEvent:
-                        MouseEvent.ClickDown();
-                        break;
-                    case MovementMethod.Makcu:
-                        if (EnsureMakcuReady() && MakcuMain.MakcuInstance != null)
-                            MakcuMain.MakcuInstance.Press(MakcuMouseButton.Left);
-                        else
-                            MouseEvent.ClickDown();
-                        break;
-                    case MovementMethod.Arduino:
-                        ArduinoMain.ClickDown();
-                        break;
-                    default:
-                        MouseEvent.ClickDown();
-                        break;
+                    isSpraying = true;
+                    ClickDown(config.MovementMethod);
                 }
-                await Task.Delay(config.TriggerDuration);
-                switch (config.MovementMethod)
+                else if (!config.TriggerSpray)
                 {
-                    case MovementMethod.MouseEvent:
-                        MouseEvent.ClickUp();
-                        break;
-                    case MovementMethod.Makcu:
-                        if (EnsureMakcuReady() && MakcuMain.MakcuInstance != null)
-                            MakcuMain.MakcuInstance.Release(MakcuMouseButton.Left);
-                        else
-                            MouseEvent.ClickUp();
-                        break;
-                    case MovementMethod.Arduino:
-                        ArduinoMain.ClickUp();
-                        break;
-                    default:
-                        MouseEvent.ClickUp();
-                        break;
+                    ClickDown(config.MovementMethod);
                 }
+
+                if (!config.TriggerRandomDuration && !config.TriggerSpray)
+                    await Task.Delay(config.TriggerDuration);
+                else if (!config.TriggerSpray)
+                    await Task.Delay(Random.Shared.Next(20, config.TriggerDuration));
+
+                if (!config.TriggerSpray)
+                    ClickUp(config.MovementMethod);
             }
             else
             {
-                var dist = Math.Sqrt(Math.Pow(currentPosition.X - lastDetection.X, 2) + Math.Pow(currentPosition.Y - lastDetection.Y, 2));
+                if (isSpraying)
+                {
+                    isSpraying = false;
+                    ClickUp(config.MovementMethod);
+                }
+            }
+        }
+
+        private static void ClickDown(MovementMethod movementMethod)
+        {
+            switch (movementMethod)
+            {
+                case MovementMethod.MouseEvent:
+                    MouseEvent.ClickDown();
+                    break;
+                case MovementMethod.Makcu:
+                    if (EnsureMakcuReady() && MakcuMain.MakcuInstance != null)
+                        MakcuMain.MakcuInstance.Press(MakcuMouseButton.Left);
+                    else
+                        MouseEvent.ClickDown();
+                    break;
+                case MovementMethod.Arduino:
+                    ArduinoMain.ClickDown();
+                    break;
+                default:
+                    MouseEvent.ClickDown();
+                    break;
+            }
+        }
+        private static void ClickUp(MovementMethod movementMethod)
+        {
+            switch (movementMethod)
+            {
+                case MovementMethod.MouseEvent:
+                    MouseEvent.ClickUp();
+                    break;
+                case MovementMethod.Makcu:
+                    if (EnsureMakcuReady() && MakcuMain.MakcuInstance != null)
+                        MakcuMain.MakcuInstance.Release(MakcuMouseButton.Left);
+                    else
+                        MouseEvent.ClickUp();
+                    break;
+                case MovementMethod.Arduino:
+                    ArduinoMain.ClickUp();
+                    break;
+                default:
+                    MouseEvent.ClickUp();
+                    break;
             }
         }
 

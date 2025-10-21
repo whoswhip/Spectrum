@@ -13,7 +13,7 @@ namespace Spectrum
 {
     partial class Renderer : Overlay
     {
-        static (int width, int height) screenSize = SystemHelper.GetPrimaryScreenSize();
+        static (int width, int height) screenSize = Win32.GetPrimaryScreenSize();
         private List<Action<ImDrawListPtr>> detectionDrawCommands = new List<Action<ImDrawListPtr>>();
         private List<Action<ImDrawListPtr>> activeDrawCommands = new List<Action<ImDrawListPtr>>();
         private readonly object detectionDrawLock = new object();
@@ -191,17 +191,27 @@ namespace Spectrum
 
                     if (triggerBot)
                     {
+                        bool BoundingBoxOnly = config.TriggerInBoundsOnly;
+                        bool TriggerSpray = config.TriggerSpray;
+
                         int triggerDelay = config.TriggerDelay;
                         if (ImGuiExtensions.SliderFill("Trigger Delay (ms)", ref triggerDelay, 1, 1000))
                             config.TriggerDelay = triggerDelay;
 
-                        int triggerFov = config.TriggerFov;
-                        if (ImGuiExtensions.SliderFill("Trigger FOV (px)", ref triggerFov, 1, 100))
-                            config.TriggerFov = triggerFov;
-
+                        if (TriggerSpray)
+                            ImGui.BeginDisabled();
                         int triggerDuration = config.TriggerDuration;
                         if (ImGuiExtensions.SliderFill("Trigger Duration (ms)", ref triggerDuration, 1, 1000))
                             config.TriggerDuration = triggerDuration;
+                        if (TriggerSpray)
+                            ImGui.EndDisabled();
+
+                        if (BoundingBoxOnly)
+                            ImGui.BeginDisabled();
+
+                        int triggerFov = config.TriggerFov;
+                        if (ImGuiExtensions.SliderFill("Trigger FOV (px)", ref triggerFov, 1, 100))
+                                config.TriggerFov = triggerFov;
 
                         bool DrawTriggerFov = config.DrawTriggerFov;
                         if (ImGui.Checkbox("##Draw Trigger FOV", ref DrawTriggerFov))
@@ -213,6 +223,31 @@ namespace Spectrum
                         if (ImGui.ColorEdit4("Trigger Color", ref RadiusColor, ImGuiColorEditFlags.NoInputs | ImGuiColorEditFlags.NoLabel))
                             config.TriggerRadiusColor = RadiusColor;
 
+                        if (BoundingBoxOnly)
+                            ImGui.EndDisabled();
+
+                        bool RandomDelay = config.TriggerRandomDelay;
+                        if (ImGui.Checkbox(" Random Delay", ref RandomDelay))
+                            config.TriggerRandomDelay = RandomDelay;
+                        if (ImGui.IsItemHovered(ImGuiHoveredFlags.None))
+                            ImGui.SetTooltip("Randomizes the trigger delay between 10 and the set Trigger Delay.");
+
+                        if (TriggerSpray)
+                            ImGui.BeginDisabled();
+
+                        bool RandomDuration = config.TriggerRandomDuration;
+                        if (ImGui.Checkbox(" Random Duration", ref RandomDuration))
+                            config.TriggerRandomDuration = RandomDuration;
+                        if (ImGui.IsItemHovered(ImGuiHoveredFlags.None))
+                            ImGui.SetTooltip("Randomizes the trigger duration between 20 and the set Trigger Duration.");
+                        
+                        if (TriggerSpray)
+                            ImGui.EndDisabled();
+
+                        if (ImGui.Checkbox(" Trigger Spray", ref TriggerSpray))
+                            config.TriggerSpray = TriggerSpray;
+                        if (ImGui.Checkbox(" Bounding Box Only", ref BoundingBoxOnly))
+                            config.TriggerInBoundsOnly = BoundingBoxOnly;
                     }
                     ImGuiExtensions.EndPane();
                 }
@@ -635,6 +670,16 @@ namespace Spectrum
                     if (!VSync)
                         if (ImGuiExtensions.SliderFill("FPS Limit", ref _fpsLimit, 30, 480))
                             FPSLimit = _fpsLimit;
+
+                    bool AntiCapture = config.AntiCapture;
+                    if (ImGui.Checkbox("Anti-Capture", ref AntiCapture))
+                    {
+                        config.AntiCapture = AntiCapture;
+                        if (AntiCapture)
+                            Win32.EnableAntiCapture(window.Handle);
+                        else
+                            Win32.DisableAntiCapture(window.Handle);
+                    }
 
                     ImGui.TextUnformatted("Background Image Interval");
                     ImGui.SetNextItemWidth(-1);

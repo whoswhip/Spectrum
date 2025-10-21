@@ -206,6 +206,9 @@ namespace Spectrum.Detection
             if (cancellationTokenSource != null)
                 return;
             LogManager.Log("Starting auto labeling...", LogLevel.Info);
+            int existingImages = Directory.Exists("bin/dataset/images") ?
+                Directory.GetFiles("bin/dataset/images", "image_*.jpg").Length : 0;
+            imageCount = existingImages;
             Started = true;
             cancellationTokenSource = new CancellationTokenSource();
             backgroundTask = Task.Run(() => LabelingLoop(cancellationTokenSource.Token));
