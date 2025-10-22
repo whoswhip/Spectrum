@@ -37,11 +37,12 @@ namespace Spectrum.Detection
         {
             while (true)
             {
+                var config = mainConfig.Data;
                 try
                 {
-                    if (InputManager.IsKeyOrMouseDown(mainConfig.Data.Keybind) || InputManager.IsKeyOrMouseDown(mainConfig.Data.TriggerKeybind))
+                    if (InputManager.IsKeyOrMouseDown(config.Keybind) || InputManager.IsKeyOrMouseDown(config.TriggerKeybind))
                     {
-                        var config = mainConfig.Data;
+
                         if (config.DebugMode)
                             stopwatch.Restart();
 
@@ -268,15 +269,19 @@ namespace Spectrum.Detection
                         MovementPaths.ResetWindMouse();
                         Thread.Sleep(5);
                     }
-                    if (InputManager.IsKeyOrMouseDown(mainConfig.Data.MenuKey))
+                    if (InputManager.IsKeyOrMouseDown(config.MenuKey))
                     {
                         var now = DateTime.Now;
                         if ((now - lastMenuToggle).TotalMilliseconds > 175)
                         {
-                            mainConfig.Data.ShowMenu = !mainConfig.Data.ShowMenu;
+                            config.ShowMenu = !config.ShowMenu;
                             lastMenuToggle = now;
                         }
                     }
+                    if (config.AntiCapture && !Win32.IsWindowHidden)
+                        Win32.EnableAntiCapture(renderer!.window.Handle);
+                    else if (!config.AntiCapture && Win32.IsWindowHidden)
+                        Win32.DisableAntiCapture(renderer!.window.Handle);
                 }
                 catch (Exception ex)
                 {

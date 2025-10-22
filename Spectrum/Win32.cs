@@ -16,6 +16,7 @@ namespace Spectrum
         private const int SM_YVIRTUALSCREEN = 77;
         private const int SM_CXVIRTUALSCREEN = 78;
         private const int SM_CYVIRTUALSCREEN = 79;
+        public static bool IsWindowHidden = false;
 
         public static (int Width, int Height) GetPrimaryScreenSize()
         {
@@ -40,11 +41,13 @@ namespace Spectrum
 
         public static bool EnableAntiCapture(IntPtr windowHandle)
         {
+            IsWindowHidden = true;
             return SetWindowDisplayAffinity(windowHandle, WDA_EXCLUDEFROMCAPTURE);
         }
 
         public static bool DisableAntiCapture(IntPtr windowHandle)
         {
+            IsWindowHidden = false;
             return SetWindowDisplayAffinity(windowHandle, WDA_NONE);
         }
     }
