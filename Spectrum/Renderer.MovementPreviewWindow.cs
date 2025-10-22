@@ -93,29 +93,43 @@ namespace Spectrum
             Vector2 size = new Vector2(canvasSize.X, canvasSize.Y - 60);
             drawList.AddRectFilled(canvasPos, size + canvasPos, ImGui.GetColorU32(new Vector4(0.12f, 0.12f, 0.14f, 1.0f)), 3f);
             drawList.AddRect(canvasPos, size + canvasPos, ImGui.GetColorU32(new Vector4(0.17f, 0.17f, 0.20f, 1.0f)), 3f);
+            drawList.PushClipRect(canvasPos, canvasPos + size, true);
             drawList.AddRect(
                 new Vector2(boundingBox.X + canvasPos.X, boundingBox.Top + canvasPos.Y),
                 new Vector2(boundingBox.X + boundingBox.Width + canvasPos.X, boundingBox.Y + boundingBox.Height + canvasPos.Y),
                 ImGui.GetColorU32(new Vector4(0, 0, 1, 1)), 0.0f, ImDrawFlags.None, 2.0f);
+
+
 
             if (_previewPath.Count > 1)
             {
                 double maxSpeed = _previewPath.Max(p => p.speed);
                 for (int i = 1; i < _previewPath.Count; i++)
                 {
-                    var (prevPoint, _) = _previewPath[i - 1];
-                    var (currPoint, speed) = _previewPath[i];
+                    var (prevPoint, prevSpeed) = _previewPath[i - 1];
+                    var (currPoint, currSpeed) = _previewPath[i];
                     Vector2 p1 = new Vector2(canvasPos.X + prevPoint.X, canvasPos.Y + prevPoint.Y);
                     Vector2 p2 = new Vector2(canvasPos.X + currPoint.X, canvasPos.Y + currPoint.Y);
-                    Vector4 color = speed < maxSpeed / 2 ?
-                        Vector4.Lerp(new Vector4(0, 1, 0, 1), new Vector4(1, 1, 0, 1), (float)(speed / (maxSpeed / 2))) :
-                        Vector4.Lerp(new Vector4(1, 1, 0, 1), new Vector4(1, 0, 0, 1), (float)((speed - (maxSpeed / 2)) / (maxSpeed / 2)));
+
+                    double avgSpeed = (prevSpeed + currSpeed) / 2.0;
+                    float normalizedSpeed = (float)(avgSpeed / maxSpeed);
+
+                    Vector4 color;
+                    if (normalizedSpeed < 0.33f)        // green -> yellow
+                        color = Vector4.Lerp(new Vector4(0, 1, 0, 1), new Vector4(1, 1, 0, 1), normalizedSpeed / 0.33f);
+                    else if (normalizedSpeed < 0.66f)   // yellow -> orange
+                        color = Vector4.Lerp(new Vector4(1, 1, 0, 1), new Vector4(1, 0.5f, 0, 1), (normalizedSpeed - 0.33f) / 0.33f);
+                    else                                // orange -> red
+                        color = Vector4.Lerp(new Vector4(1, 0.5f, 0, 1), new Vector4(1, 0, 0, 1), (normalizedSpeed - 0.66f) / 0.34f);
+
                     drawList.AddLine(p1, p2, ImGui.GetColorU32(color), 2.0f);
                 }
             }
 
             drawList.AddCircleFilled(new Vector2(canvasPos.X + _previewStartPoint.X, canvasPos.Y + _previewStartPoint.Y), 5.0f, ImGui.GetColorU32(new Vector4(0, 1, 0, 1)));
             drawList.AddCircleFilled(new Vector2(canvasPos.X + _previewEndPoint.X, canvasPos.Y + _previewEndPoint.Y), 5.0f, ImGui.GetColorU32(new Vector4(1, 0, 0, 1)));
+
+            drawList.PopClipRect();
 
             ImGui.InvisibleButton("canvas", size);
             var io = ImGui.GetIO();
@@ -170,6 +184,11 @@ namespace Spectrum
             {
                 _isDragging = false;
             }
+
+            _previewStartPoint.X = Math.Clamp(_previewStartPoint.X, 10, (int)size.X - 10);
+            _previewStartPoint.Y = Math.Clamp(_previewStartPoint.Y, 10, (int)size.Y - 10);
+            _previewEndPoint.X = Math.Clamp(_previewEndPoint.X, 10, (int)size.X - 10);
+            _previewEndPoint.Y = Math.Clamp(_previewEndPoint.Y, 10, (int)size.Y - 10);
 
             ImGui.Dummy(new(ImGui.GetContentRegionAvail().X, 10));
             int interval = UpdatePreviewInterval;
