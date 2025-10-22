@@ -166,10 +166,10 @@ namespace Spectrum
             if (_isDragging && isMouseDown)
             {
                 Vector2 localMousePos = mousePos - canvasPos;
-                if (localMousePos.X < 0) localMousePos.X = 0;
-                if (localMousePos.Y < 0) localMousePos.Y = 0;
-                if (localMousePos.X > size.X) localMousePos.X = size.X;
-                if (localMousePos.Y > size.Y) localMousePos.Y = size.Y;
+                if (localMousePos.X < 15) localMousePos.X = 15;
+                if (localMousePos.Y < 15) localMousePos.Y = 15;
+                if (localMousePos.X > size.X - 15) localMousePos.X = size.X - 15;
+                if (localMousePos.Y > size.Y - 15) localMousePos.Y = size.Y - 15;
                 if (_isMovingStart)
                 {
                     _previewStartPoint = new Point((int)localMousePos.X, (int)localMousePos.Y);
@@ -184,11 +184,6 @@ namespace Spectrum
             {
                 _isDragging = false;
             }
-
-            _previewStartPoint.X = Math.Clamp(_previewStartPoint.X, 10, (int)size.X - 10);
-            _previewStartPoint.Y = Math.Clamp(_previewStartPoint.Y, 10, (int)size.Y - 10);
-            _previewEndPoint.X = Math.Clamp(_previewEndPoint.X, 10, (int)size.X - 10);
-            _previewEndPoint.Y = Math.Clamp(_previewEndPoint.Y, 10, (int)size.Y - 10);
 
             ImGui.Dummy(new(ImGui.GetContentRegionAvail().X, 10));
             int interval = UpdatePreviewInterval;
