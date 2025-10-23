@@ -9,7 +9,7 @@ namespace Spectrum
         private bool _showMovementPreview = false;
         private Point _previewStartPoint = new(100, 100);
         private Point _previewEndPoint = new(400, 300);
-        private List<(Point point, double speed)> _previewPath = [];
+        private readonly List<(Point point, double speed)> _previewPath = [];
         private int UpdatePreviewInterval = 10; // ms
         private DateTime _lastPreviewUpdate = DateTime.MinValue;
         private bool _isDragging = false;
