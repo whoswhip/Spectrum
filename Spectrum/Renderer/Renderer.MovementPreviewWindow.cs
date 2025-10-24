@@ -60,22 +60,7 @@ namespace Spectrum
                     if (steps++ >= maxSteps)
                         break;
                     bool isInBox = boundingBox.Contains(current);
-                    Point nextPoint = config.AimMovementType switch
-                    {
-                        MovementType.Linear => MovementPaths.LinearInterpolation(current, _previewEndPoint, progress),
-                        MovementType.CubicBezier => MovementPaths.CubicBezierCurvedMovement(current, _previewEndPoint, progress),
-                        MovementType.Adaptive => MovementPaths.AdaptiveMovement(current, _previewEndPoint, progress),
-                        MovementType.QuadraticBezier => MovementPaths.CurvedMovement(current, _previewEndPoint, progress),
-                        MovementType.PerlinNoise => MovementPaths.PerlinNoiseMovement(current, _previewEndPoint, progress),
-                        MovementType.WindMouse => MovementPaths.WindMouse(current, _previewEndPoint,
-                            config.WindMouseGravity,
-                            config.WindMouseWind,
-                            config.WindMouseMaxStep,
-                            config.Sensitivity,
-                            config.WindMouseOvershoot,
-                            isInBox),
-                        _ => MovementPaths.LinearInterpolation(current, _previewEndPoint, progress),
-                    };
+                    Point nextPoint = InputManager.CalculateMovement(current, _previewEndPoint, config.Sensitivity, config.AimMovementType, isInBox);
                     if (config.EmaSmoothening)
                         nextPoint = MovementPaths.EmaSmoothing(current, nextPoint, config.EmaSmootheningFactor);
 

@@ -86,23 +86,6 @@
             return new Point(x, y);
         }
 
-        public static Point CurvedMovement(Point start, Point end, double t)
-        {
-            t = Clamp01(t);
-            Point control = new Point((start.X + end.X) / 2, (start.Y + end.Y) / 2 - 200);
-            return QuadraticBezier(start, end, control, t);
-        }
-        public static Point QuadraticBezier(Point start, Point end, Point control, double t)
-        {
-            t = Clamp01(t);
-            double u = 1 - t;
-            double tt = t * t;
-            double uu = u * u;
-            double x = uu * start.X + 2 * u * t * control.X + tt * end.X;
-            double y = uu * start.Y + 2 * u * t * control.Y + tt * end.Y;
-            return new Point((int)Math.Round(x), (int)Math.Round(y));
-        }
-
         public static Point AdaptiveMovement(Point start, Point end, double sensitivity)
         {
             double dx = end.X - start.X;

@@ -301,7 +301,6 @@ namespace Spectrum
     {
         Linear,
         CubicBezier,
-        QuadraticBezier,
         Adaptive,
         PerlinNoise,
         WindMouse

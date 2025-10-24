@@ -68,22 +68,7 @@ namespace Spectrum.Input
 
             bool insideBoundingBox = lastDetectionBox.Contains(start);
 
-            Point newPosition = config.AimMovementType switch
-            {
-                MovementType.CubicBezier => MovementPaths.CubicBezierCurvedMovement(start, end, effSensitivity),
-                MovementType.Linear => MovementPaths.LinearInterpolation(start, end, effSensitivity),
-                MovementType.Adaptive => MovementPaths.AdaptiveMovement(start, end, effSensitivity),
-                MovementType.QuadraticBezier => MovementPaths.CurvedMovement(start, end, effSensitivity),
-                MovementType.PerlinNoise => MovementPaths.PerlinNoiseMovement(start, end, effSensitivity),
-                MovementType.WindMouse => MovementPaths.WindMouse(start, end,
-                    config.WindMouseGravity,
-                    config.WindMouseWind,
-                    config.WindMouseMaxStep,
-                    effSensitivity,
-                    config.WindMouseOvershoot,
-                    insideBoundingBox),
-                _ => MovementPaths.LinearInterpolation(start, end, effSensitivity),
-            };
+            Point newPosition = CalculateMovement(start, end, effSensitivity, config.AimMovementType, insideBoundingBox);
 
             if (config.EmaSmoothening)
             {
@@ -117,6 +102,25 @@ namespace Spectrum.Input
                     MouseEvent.Move(deltaX, deltaY);
                     break;
             }
+        }
+
+        public static Point CalculateMovement(Point start, Point end, double sensitivity, MovementType movementType, bool insideBoundingBox)
+        {
+            return movementType switch
+            {
+                MovementType.CubicBezier => MovementPaths.CubicBezierCurvedMovement(start, end, sensitivity),
+                MovementType.Linear => MovementPaths.LinearInterpolation(start, end, sensitivity),
+                MovementType.Adaptive => MovementPaths.AdaptiveMovement(start, end, sensitivity),
+                MovementType.PerlinNoise => MovementPaths.PerlinNoiseMovement(start, end, sensitivity),
+                MovementType.WindMouse => MovementPaths.WindMouse(start, end,
+                    mainConfig.Data.WindMouseGravity,
+                    mainConfig.Data.WindMouseWind,
+                    mainConfig.Data.WindMouseMaxStep,
+                    sensitivity,
+                    mainConfig.Data.WindMouseOvershoot,
+                    insideBoundingBox),
+                _ => MovementPaths.LinearInterpolation(start, end, sensitivity),
+            };
         }
 
         public static async Task ClickMouse()
