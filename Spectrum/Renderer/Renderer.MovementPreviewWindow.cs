@@ -48,17 +48,19 @@ namespace Spectrum
                 _previewPath.Clear();
 
                 MovementPaths.ResetWindMouse();
-                double progress = 0.0;
-                double increment = config.Sensitivity * 0.02;
                 Point current = _previewStartPoint;
                 int steps = 0;
                 int maxSteps = 10000;
+                
+                _previewPath.Add((current, 0.0));
 
                 while (true)
                 {
                     double distance = Math.Sqrt(Math.Pow(_previewEndPoint.X - current.X, 2) + Math.Pow(_previewEndPoint.Y - current.Y, 2));
-                    if (steps++ >= maxSteps)
+                    
+                    if (distance < 2.0 || steps++ >= maxSteps)
                         break;
+                    
                     bool isInBox = boundingBox.Contains(current);
                     Point nextPoint = InputManager.CalculateMovement(current, _previewEndPoint, config.Sensitivity, config.AimMovementType, isInBox);
                     if (config.EmaSmoothening)
@@ -67,7 +69,14 @@ namespace Spectrum
                     double speed = Math.Sqrt(Math.Pow(nextPoint.X - current.X, 2) + Math.Pow(nextPoint.Y - current.Y, 2));
                     _previewPath.Add((nextPoint, speed));
                     current = nextPoint;
-                    progress += increment;
+                }
+                
+                if (_previewPath.Count > 0)
+                {
+                    var lastPoint = _previewPath[^1].point;
+                    double finalDistance = Math.Sqrt(Math.Pow(_previewEndPoint.X - lastPoint.X, 2) + Math.Pow(_previewEndPoint.Y - lastPoint.Y, 2));
+                    if (finalDistance > 2.0)
+                        _previewPath.Add((_previewEndPoint, finalDistance));
                 }
             }
 
