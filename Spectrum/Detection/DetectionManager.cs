@@ -185,9 +185,20 @@ namespace Spectrum.Detection
 
                                 if (config.DrawAimPoint)
                                 {
-                                    renderer!.AddLine(new System.Numerics.Vector2(targetX - 10, targetY), new System.Numerics.Vector2(targetX + 10, targetY), config.AimPointColor, 2);
-                                    renderer!.AddLine(new System.Numerics.Vector2(targetX, targetY - 10), new System.Numerics.Vector2(targetX, targetY + 10), config.AimPointColor, 2);
-                                    renderer!.AddCircle(new System.Numerics.Vector2(targetX, targetY), 5, config.AimPointColor, 20);
+                                    if (config.AimPointType == AimpointType.Crosshair)
+                                    {
+                                        renderer!.AddLine(new System.Numerics.Vector2(targetX - 10, targetY), new System.Numerics.Vector2(targetX + 10, targetY), config.AimPointColor, 2);
+                                        renderer!.AddLine(new System.Numerics.Vector2(targetX, targetY - 10), new System.Numerics.Vector2(targetX, targetY + 10), config.AimPointColor, 2);
+                                        renderer!.AddCircle(new System.Numerics.Vector2(targetX, targetY), 5, config.AimPointColor, 20);
+                                    }
+                                    else if (config.AimPointType == AimpointType.Dot)
+                                    {
+                                        renderer!.AddCircleFilled(new System.Numerics.Vector2(targetX, targetY), 5, config.AimPointColor, 20);
+                                    }
+                                    else if (config.AimPointType == AimpointType.Circle)
+                                    {
+                                        renderer!.AddCircle(new System.Numerics.Vector2(targetX, targetY), 10, config.AimPointColor, 20);
+                                    }
                                 }
 
                                 if (config.AutoLabel && drawing != null)
@@ -233,13 +244,9 @@ namespace Spectrum.Detection
                         drawing?.Dispose();
 
                         if (!AutoLabeling.Started && (config.CollectData || config.AutoLabel))
-                        {
                             AutoLabeling.StartLabeling();
-                        }
                         else if (AutoLabeling.Started && !config.CollectData && !config.AutoLabel)
-                        {
                             AutoLabeling.StopLabeling();
-                        }
 
                         if (config.DebugMode)
                         {

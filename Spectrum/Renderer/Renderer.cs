@@ -211,7 +211,7 @@ namespace Spectrum
 
                         int triggerFov = config.TriggerFov;
                         if (ImGuiExtensions.SliderFill("Trigger FOV (px)", ref triggerFov, 1, 100))
-                                config.TriggerFov = triggerFov;
+                            config.TriggerFov = triggerFov;
 
                         bool DrawTriggerFov = config.DrawTriggerFov;
                         if (ImGui.Checkbox("##Draw Trigger FOV", ref DrawTriggerFov))
@@ -240,7 +240,7 @@ namespace Spectrum
                             config.TriggerRandomDuration = RandomDuration;
                         if (ImGui.IsItemHovered(ImGuiHoveredFlags.None))
                             ImGui.SetTooltip("Randomizes the trigger duration between 20 and the set Trigger Duration.");
-                        
+
                         if (TriggerSpray)
                             ImGui.EndDisabled();
 
@@ -316,6 +316,24 @@ namespace Spectrum
                                 bool isSelected = (type == fovType);
                                 if (ImGui.Selectable(type.ToString(), isSelected))
                                     config.FOVType = type;
+                                if (isSelected)
+                                    ImGui.SetItemDefaultFocus();
+                            }
+                            ImGui.EndCombo();
+                        }
+                    }
+                    if (DrawAimPoint)
+                    {
+                        AimpointType aimpointType = config.AimPointType;
+                        ImGui.TextUnformatted("Aimpoint Type");
+                        ImGui.SetNextItemWidth(-1);
+                        if (ImGui.BeginCombo("##Aimpoint Type", aimpointType.ToString()))
+                        {
+                            foreach (AimpointType type in Enum.GetValues(typeof(AimpointType)))
+                            {
+                                bool isSelected = (type == aimpointType);
+                                if (ImGui.Selectable(type.ToString(), isSelected))
+                                    config.AimPointType = type;
                                 if (isSelected)
                                     ImGui.SetItemDefaultFocus();
                             }
@@ -948,6 +966,15 @@ namespace Spectrum
             lock (detectionDrawLock)
             {
                 detectionDrawCommands.Add(drawList => drawList.AddCircle(center, radius, ImGui.GetColorU32(color), numSegments, thickness));
+            }
+        }
+        public void AddCircleFilled(Vector2 center, float radius, Vector4 color, int numSegments = 0)
+        {
+            if (numSegments <= 0)
+                numSegments = (int)(Math.Max(1, radius / 2.0f));
+            lock (detectionDrawLock)
+            {
+                detectionDrawCommands.Add(drawList => drawList.AddCircleFilled(center, radius, ImGui.GetColorU32(color), numSegments));
             }
         }
 

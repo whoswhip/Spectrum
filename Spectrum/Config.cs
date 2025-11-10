@@ -316,6 +316,12 @@ namespace Spectrum
         Circle,
         Rectangle
     }
+    public enum AimpointType
+    {
+        Crosshair,
+        Dot,
+        Circle
+    }
     public enum CaptureMethod
     {
         GDI,
@@ -390,6 +396,7 @@ namespace Spectrum
         public Vector4 FOVColor { get; set; } = new Vector4(0.0f, 1.0f, 0.0f, 1.0f);
         public bool DrawAimPoint { get; set; } = true;
         public Vector4 AimPointColor { get; set; } = new Vector4(1.0f, 0.0f, 0.0f, 1.0f);
+        public AimpointType AimPointType { get; set; } = AimpointType.Dot;
         #endregion
 
         #region Data Collection Settings
