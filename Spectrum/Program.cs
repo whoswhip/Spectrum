@@ -1,6 +1,5 @@
 ﻿using OpenCvSharp;
 using Spectrum.Detection;
-using System.Runtime.InteropServices;
 
 namespace Spectrum
 {

@@ -278,7 +278,7 @@ namespace Spectrum.Input
 
             _ = tcs.Task.ContinueWith(_ =>
             {
-                try { ctr.Dispose(); } catch {}
+                try { ctr.Dispose(); } catch { }
                 UnsubscribeMakcu();
             }, TaskScheduler.Default);
 
@@ -367,7 +367,8 @@ namespace Spectrum.Input
                 {
                     var states = MakcuMain.MakcuInstance.GetCurrentButtonStates();
                     return states.TryGetValue(makcuBtn, out var pressed) && pressed;
-                } catch {}
+                }
+                catch { }
             }
             return (GetAsyncKeyState((int)key) & 0x8000) != 0; ;
         }
