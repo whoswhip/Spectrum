@@ -139,6 +139,9 @@
             return new Point(x, y);
         }
 
+        private static bool _isOvershooting = false;
+        private static Point _overshootTarget = new Point(0, 0);
+
         public static Point WindMouse(Point start, Point end, double gravity = 9.0, double wind = 3.0,
             double maxStep = 10.0, double sensitivity = 1.0, bool enableOvershoot = false, bool insideBoundingBox = false)
         {
@@ -161,15 +164,59 @@
                 _windY *= 0.15;
                 _velocityX *= 0.3;
                 _velocityY *= 0.3;
+                _isOvershooting = false;
                 return _lastMove = new Point(x, y);
             }
 
             double distScale = Math.Min(d / 100.0, 3.0);
             double sens = Math.Max(0.1, sensitivity);
             double dyn = maxStep * sens * (1.0 + distScale);
-            double g = gravity * (1.0 + distScale * 0.3) * sens * (enableOvershoot ? 1.15 : 1.0);
+            if (enableOvershoot)
+            {
+                double currentVelocity = Math.Sqrt(_velocityX * _velocityX + _velocityY * _velocityY);
+
+                if (!_isOvershooting && d < 50 && currentVelocity > 3.0)
+                {
+                    double overshootDistance = Math.Min(currentVelocity * 2.5, 30.0);
+                    _overshootTarget = new Point(
+                        (int)Math.Round(end.X + dirX * overshootDistance),
+                        (int)Math.Round(end.Y + dirY * overshootDistance)
+                    );
+                    _isOvershooting = true;
+                }
+
+                if (_isOvershooting)
+                {
+                    double distToOvershoot = Math.Sqrt(
+                        Math.Pow(_overshootTarget.X - start.X, 2) +
+                        Math.Pow(_overshootTarget.Y - start.Y, 2)
+                    );
+
+
+                    Point currentTarget;
+                    if (distToOvershoot < 5.0 || currentVelocity < 1.5)
+                    {
+                        _isOvershooting = false;
+                    }
+                    else
+                    {
+                        currentTarget = _overshootTarget;
+                        dx = currentTarget.X - start.X;
+                        dy = currentTarget.Y - start.Y;
+                        d = Math.Sqrt(dx * dx + dy * dy);
+                        if (d > 0)
+                        {
+                            inv = 1.0 / d;
+                            dirX = dx * inv;
+                            dirY = dy * inv;
+                        }
+                    }
+                }
+            }
+
+            double g = gravity * (1.0 + distScale * 0.3) * sens * (enableOvershoot && !_isOvershooting ? 1.3 : 1.0);
             double prox = insideBoundingBox ? 0.0 : 1.0;
-            double w = wind * Math.Pow(prox, 4.0) * (enableOvershoot ? 1.2 : 1.0);
+            double w = wind * Math.Pow(prox, 4.0) * (enableOvershoot ? 1.3 : 1.0);
 
             if (insideBoundingBox)
             {
@@ -206,6 +253,12 @@
                     _velocityY *= r;
                 }
             }
+            else if (enableOvershoot && !_isOvershooting && d < 30)
+            {
+                double correctionDamp = 0.7;
+                _velocityX *= correctionDamp;
+                _velocityY *= correctionDamp;
+            }
 
             int nx = (int)Math.Round(start.X + _velocityX);
             int ny = (int)Math.Round(start.Y + _velocityY);
@@ -219,6 +272,8 @@
             _velocityX = 0.0;
             _velocityY = 0.0;
             _lastMove = new Point(0, 0);
+            _isOvershooting = false;
+            _overshootTarget = new Point(0, 0);
         }
 
         private static int[] GeneratePermutation()
